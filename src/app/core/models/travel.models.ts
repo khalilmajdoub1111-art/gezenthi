@@ -4,11 +4,19 @@
  * so keep them in sync with the backend DTOs once they exist.
  */
 
-export type BoardType = 'Tout compris' | 'All inclusive soft' | 'Demi-pension' | 'Petit-déjeuner';
+export const BOARD_TYPES = ['Tout compris', 'All inclusive soft', 'Demi-pension', 'Petit-déjeuner', 'Logement seul'] as const;
+export type BoardType = (typeof BOARD_TYPES)[number];
 
-export interface Hotel {
+/** Fields every manageable offer shares. */
+export interface CatalogEntity {
   id: string;
+  /** Hidden from the public site when false (draft / sold out). */
+  published: boolean;
+}
+
+export interface Hotel extends CatalogEntity {
   name: string;
+  region: 'tunisie' | 'monde';
   city: string;
   stars: 3 | 4 | 5;
   rating: number; // guest rating out of 10
@@ -20,8 +28,8 @@ export interface Hotel {
   tags: string[];
 }
 
-export interface Destination {
-  id: string;
+/** Organised trip abroad ("Voyages à l'étranger"). */
+export interface Destination extends CatalogEntity {
   name: string;
   country: string;
   durationDays: number;
@@ -31,11 +39,42 @@ export interface Destination {
   badge?: string;
 }
 
-export interface FlightDeal {
+export interface OmraProgram extends CatalogEntity {
+  title: string;
+  durationDays: number;
+  departure: string; // free text, e.g. "15 mars 2027"
+  hotelDistance: number; // metres from the Haram
+  priceFrom: number; // TND, per person
+  image: string;
+  includes: string[];
+}
+
+export interface FlightDeal extends CatalogEntity {
   city: string;
   airportCode: string;
   priceFrom: number; // TND, return trip
 }
+
+export const SERVICE_KINDS = ['Visa', 'Ferry CTN', 'TRE'] as const;
+export type ServiceKind = (typeof SERVICE_KINDS)[number];
+
+/** On-request services: visa files, CTN ferry crossings, TRE packs. */
+export interface ServiceOffer extends CatalogEntity {
+  kind: ServiceKind;
+  title: string;
+  priceFrom?: number; // TND
+  description: string;
+}
+
+/** Everything the admin can manage. Keys are also the admin URL segments. */
+export interface CatalogData {
+  hotels: Hotel[];
+  trips: Destination[];
+  omra: OmraProgram[];
+  flights: FlightDeal[];
+  services: ServiceOffer[];
+}
+export type CatalogKey = keyof CatalogData;
 
 export interface ServiceItem {
   label: string;
@@ -73,4 +112,5 @@ export type IconName =
   | 'beach' | 'hotel' | 'globe' | 'plane' | 'ship' | 'passport' | 'moon' | 'users'
   | 'search' | 'calendar' | 'pin' | 'star' | 'phone' | 'mail' | 'menu' | 'close'
   | 'chevron-down' | 'chevron-right' | 'arrow-right' | 'shield' | 'tag' | 'headset'
-  | 'award' | 'heart' | 'clock' | 'check' | 'whatsapp' | 'facebook' | 'instagram' | 'tiktok';
+  | 'award' | 'heart' | 'clock' | 'check' | 'whatsapp' | 'facebook' | 'instagram' | 'tiktok'
+  | 'plus' | 'edit' | 'trash' | 'eye' | 'eye-off' | 'logout' | 'grid' | 'upload' | 'refresh' | 'external';

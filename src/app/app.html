@@ -1,15 +1,1 @@
-<app-header />
-<main>
-  <router-outlet />
-</main>
-<app-footer />
-
-<!-- Floating contact button (number to be set in AGENCY_CONTACT) -->
-<a
-  [href]="contact.phoneHref"
-  aria-label="Contacter un conseiller"
-  class="fixed bottom-5 right-5 z-40 grid size-14 place-items-center rounded-full bg-gold-400 text-brand-950 shadow-xl shadow-brand-950/25 transition hover:scale-110"
->
-  <span class="absolute inset-0 animate-ping rounded-full bg-gold-400/40"></span>
-  <app-icon name="headset" [size]="26" class="relative" />
-</a>
+<router-outlet />

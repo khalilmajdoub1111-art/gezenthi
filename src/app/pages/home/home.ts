@@ -17,21 +17,33 @@ export class Home {
 
   protected readonly heroImages = this.catalog.heroImages();
   protected readonly promo = this.catalog.promoImages();
-  protected readonly services = this.catalog.services();
-  protected readonly destinations = this.catalog.destinations();
-  protected readonly flights = this.catalog.flightDeals();
+  protected readonly services = this.catalog.serviceShortcuts();
   protected readonly testimonials = this.catalog.testimonials();
-  private readonly hotels = this.catalog.tunisiaHotels();
+
+  /* Live, admin-managed content (published items only) */
+  protected readonly destinations = this.catalog.trips;
+  protected readonly flights = this.catalog.flights;
+  protected readonly omraPrograms = computed(() => [...this.catalog.omra()].sort((a, b) => a.priceFrom - b.priceFrom));
+  protected readonly visaOffers = computed(() => this.catalog.services().filter((s) => s.kind === 'Visa'));
+  protected readonly ferryOffers = computed(() => this.catalog.services().filter((s) => s.kind !== 'Visa'));
+  protected readonly featuredTrip = computed(() => this.destinations()[0]);
 
   /* Hero slideshow */
   protected readonly slide = signal(0);
 
-  /* Hotel city filter */
-  protected readonly cities = ['Tous', ...new Set(this.hotels.map((h) => h.city))];
+  /* Hotels: Tunisia / world tabs + city filter */
+  protected readonly region = signal<'tunisie' | 'monde'>('tunisie');
+  private readonly regionHotels = computed(() => this.catalog.hotels().filter((h) => h.region === this.region()));
+  protected readonly cities = computed(() => ['Tous', ...new Set(this.regionHotels().map((h) => h.city))]);
   protected readonly city = signal('Tous');
   protected readonly filteredHotels = computed(() =>
-    this.city() === 'Tous' ? this.hotels : this.hotels.filter((h) => h.city === this.city()),
+    this.city() === 'Tous' ? this.regionHotels() : this.regionHotels().filter((h) => h.city === this.city()),
   );
+
+  protected setRegion(region: 'tunisie' | 'monde'): void {
+    this.region.set(region);
+    this.city.set('Tous');
+  }
 
   /* Flash-sale countdown (demo: ends 2 days 9 hours after page load) */
   private readonly saleEnd = Date.now() + (2 * 24 + 9) * 3_600_000;

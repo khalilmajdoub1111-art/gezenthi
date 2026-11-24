@@ -60,6 +60,7 @@ import { Icon } from '../../shared/icon/icon';
             <a href="#" class="hover:text-gold-300">Conditions générales</a>
             <a href="#" class="hover:text-gold-300">Confidentialité</a>
             <a href="#" class="hover:text-gold-300">Mentions légales</a>
+            <a href="/admin" class="hover:text-gold-300">Espace admin</a>
           </div>
         </div>
       </div>
