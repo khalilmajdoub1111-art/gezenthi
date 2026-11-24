@@ -7,7 +7,9 @@ const EMPTY: CatalogData = { hotels: [], trips: [], omra: [], flights: [], servi
 
 /**
  * Read-only catalogue for the PUBLIC site, from GET /api/public/catalog
- * (published items only, filtered by the server). Loaded once per visit.
+ * (published items only, filtered by the server).
+ * Call reload() whenever a page that shows offers opens, so changes made in the
+ * admin are visible without a full browser refresh.
  */
 @Injectable({ providedIn: 'root' })
 export class CatalogService {
@@ -21,7 +23,9 @@ export class CatalogService {
   readonly flights = computed(() => this.data().flights);
   readonly services = computed(() => this.data().services);
 
-  constructor() {
+  /** Fetches the latest published catalogue (keeps showing the previous data while loading). */
+  reload(): void {
+    if (this.status() !== 'ready') this.status.set('loading');
     this.http.get<CatalogData>('/api/public/catalog').subscribe({
       next: (catalog) => {
         this.data.set(catalog);

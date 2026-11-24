@@ -74,6 +74,7 @@ export class Home {
   ];
 
   constructor() {
+    this.catalog.reload(); // always show the latest offers (e.g. just added in the admin)
     const slideTimer = setInterval(() => this.slide.update((i) => (i + 1) % this.heroImages.length), 6000);
     const clockTimer = setInterval(() => this.now.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => {
