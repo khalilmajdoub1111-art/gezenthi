@@ -25,6 +25,11 @@ import { ADMIN_ENTITIES } from './admin-entities';
             <app-icon [name]="e.icon" [size]="18" /> {{ e.label }}
           </a>
         }
+        <p class="px-3 pb-1 pt-5 text-[11px] font-bold uppercase tracking-wider text-brand-400">Intégrations</p>
+        <a routerLink="/admin/fournisseurs" routerLinkActive="!bg-white/10 !text-white"
+           class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition hover:bg-white/5 hover:text-white">
+          <app-icon name="globe" [size]="18" /> Fournisseurs (API)
+        </a>
       </nav>
       <div class="space-y-1 border-t border-white/10 p-3">
         <a href="/" target="_blank" rel="noopener" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition hover:bg-white/5 hover:text-white">
@@ -52,6 +57,8 @@ import { ADMIN_ENTITIES } from './admin-entities';
           <a [routerLink]="['/admin', e.key]" routerLinkActive="!bg-gold-400 !text-brand-950"
              class="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium">{{ e.label }}</a>
         }
+        <a routerLink="/admin/fournisseurs" routerLinkActive="!bg-gold-400 !text-brand-950"
+           class="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium">Fournisseurs</a>
       </nav>
     </div>
 

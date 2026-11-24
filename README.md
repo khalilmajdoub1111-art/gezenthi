@@ -42,6 +42,11 @@ Start the backend first; the Angular dev server proxies `/api` to `localhost:808
 `{type}` = `hotels`, `trips`, `omra`, `flights`, `services`. Errors are JSON problem details;
 validation errors include `errors: { field: message }`.
 
+| GET | `/api/public/hotels/search?city&checkIn&checkOut&adults&children` | Unified hotel search (own + suppliers) |
+| GET · POST | `/api/admin/suppliers` · `/{code}/test` · `/{code}/sync` | Supplier status, connection test, static sync |
+
+Hotel suppliers (TunisiaBeds / OS-TRAVEL API): see **[docs/SUPPLIERS.md](docs/SUPPLIERS.md)**.
+
 ## Security
 
 - `/api/admin/**` requires an authenticated **ADMIN** (Spring Security); everything else is denied by default

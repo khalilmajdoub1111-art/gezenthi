@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { IconName } from '../../../core/models/travel.models';
 import { Icon } from '../../../shared/icon/icon';
 
@@ -44,6 +45,8 @@ interface SearchTab {
             <input
               [attr.list]="'dest-' + active().id"
               [placeholder]="active().wherePlaceholder"
+              [value]="destination()"
+              (input)="destination.set($any($event.target).value)"
               autocomplete="off"
               class="w-full bg-transparent text-[15px] font-semibold text-brand-950 placeholder:font-medium placeholder:text-slate-400 focus:outline-none"
             />
@@ -59,7 +62,8 @@ interface SearchTab {
           <app-icon name="calendar" [size]="20" class="text-brand-600" />
           <span class="flex-1">
             <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-500">{{ isFlight() ? 'Aller' : 'Arrivée' }}</span>
-            <input type="date" class="w-full bg-transparent text-sm font-semibold text-brand-950 focus:outline-none" />
+            <input type="date" [min]="today" [value]="checkIn()" (input)="setCheckIn($any($event.target).value)"
+                   class="w-full bg-transparent text-sm font-semibold text-brand-950 focus:outline-none" />
           </span>
         </label>
 
@@ -67,7 +71,8 @@ interface SearchTab {
           <app-icon name="calendar" [size]="20" class="text-brand-600" />
           <span class="flex-1">
             <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-500">{{ isFlight() ? 'Retour' : 'Départ' }}</span>
-            <input type="date" class="w-full bg-transparent text-sm font-semibold text-brand-950 focus:outline-none" />
+            <input type="date" [min]="checkIn() || today" [value]="checkOut()" (input)="checkOut.set($any($event.target).value)"
+                   class="w-full bg-transparent text-sm font-semibold text-brand-950 focus:outline-none" />
           </span>
         </label>
 
@@ -75,12 +80,10 @@ interface SearchTab {
           <app-icon name="users" [size]="20" class="text-brand-600" />
           <span class="flex-1">
             <span class="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Voyageurs</span>
-            <select class="w-full bg-transparent text-sm font-semibold text-brand-950 focus:outline-none">
-              <option>1 adulte</option>
-              <option selected>2 adultes</option>
-              <option>2 adultes, 1 enfant</option>
-              <option>2 adultes, 2 enfants</option>
-              <option>Groupe (5+)</option>
+            <select (change)="travellers.set($any($event.target).value)" class="w-full bg-transparent text-sm font-semibold text-brand-950 focus:outline-none">
+              @for (t of travellerOptions; track t.value) {
+                <option [value]="t.value" [selected]="t.value === travellers()">{{ t.label }}</option>
+              }
             </select>
           </span>
         </label>
@@ -93,10 +96,8 @@ interface SearchTab {
         </button>
       </form>
 
-      @if (notice()) {
-        <p class="mx-3 mb-2 rounded-xl bg-brand-50 px-4 py-2 text-sm text-brand-800" role="status">
-          Prototype : la recherche sera connectée au moteur de réservation lors de la prochaine étape.
-        </p>
+      @if (notice(); as n) {
+        <p class="mx-3 mb-2 rounded-xl bg-brand-50 px-4 py-2 text-sm text-brand-800" role="status">{{ n }}</p>
       }
     </div>
   `,
@@ -115,18 +116,59 @@ export class HeroSearch {
       suggestions: ['Omra 15 jours', 'Omra Ramadan', 'Omra économique'] },
   ];
 
+  /** value = "adults" or "adults-childAge,childAge" (child ages are approximated until age pickers exist). */
+  protected readonly travellerOptions = [
+    { value: '1', label: '1 adulte' },
+    { value: '2', label: '2 adultes' },
+    { value: '3', label: '3 adultes' },
+    { value: '2-8', label: '2 adultes, 1 enfant' },
+    { value: '2-8,5', label: '2 adultes, 2 enfants' },
+  ];
+
+  private readonly router = inject(Router);
+  protected readonly today = isoDate(new Date());
   private readonly activeId = signal('tn');
   protected readonly active = computed(() => this.tabs.find((t) => t.id === this.activeId())!);
   protected readonly isFlight = computed(() => this.activeId() === 'flights');
-  protected readonly notice = signal(false);
+  protected readonly notice = signal<string | null>(null);
+  protected readonly destination = signal('');
+  protected readonly checkIn = signal('');
+  protected readonly checkOut = signal('');
+  protected readonly travellers = signal('2');
 
   select(id: string): void {
     this.activeId.set(id);
-    this.notice.set(false);
+    this.notice.set(null);
+  }
+
+  protected setCheckIn(value: string): void {
+    this.checkIn.set(value);
+    // Default stay: 7 nights, and never a departure before the arrival.
+    if (value && (!this.checkOut() || this.checkOut() <= value)) {
+      const d = new Date(value + 'T00:00:00');
+      d.setDate(d.getDate() + 7);
+      this.checkOut.set(isoDate(d));
+    }
   }
 
   onSubmit(event: Event): void {
     event.preventDefault();
-    this.notice.set(true);
+    if (this.activeId() !== 'tn' && this.activeId() !== 'world') {
+      this.notice.set('Recherche en ligne bientôt disponible pour cette rubrique : contactez-nous pour un devis.');
+      return;
+    }
+    if (!this.destination().trim() || !this.checkIn() || !this.checkOut()) {
+      this.notice.set('Choisissez une destination, une date d’arrivée et une date de départ.');
+      return;
+    }
+    const [adults, children = ''] = this.travellers().split('-');
+    void this.router.navigate(['/recherche'], {
+      queryParams: { city: this.destination().trim(), checkIn: this.checkIn(), checkOut: this.checkOut(), adults, children: children || null },
+    });
   }
+}
+
+/** Local date as YYYY-MM-DD (no timezone shift). */
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
