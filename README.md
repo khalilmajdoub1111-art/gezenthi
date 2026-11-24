@@ -35,11 +35,25 @@ Start the backend first; the Angular dev server proxies `/api` to `localhost:808
 | GET / POST | `/api/admin/{type}` | Admin: list all / create |
 | GET / PUT / DELETE | `/api/admin/{type}/{id}` | Admin: read / update / delete |
 
+| GET | `/api/auth/csrf` | Sets the `XSRF-TOKEN` cookie |
+| POST | `/api/auth/login` · `/api/auth/logout` | Admin session (JSON) |
+| GET | `/api/auth/me` | Current admin, or 401 |
+
 `{type}` = `hotels`, `trips`, `omra`, `flights`, `services`. Errors are JSON problem details;
 validation errors include `errors: { field: message }`.
 
-> ⚠️ `/api/admin/**` is **not authenticated yet** — local development only. Spring Security
-> with real admin accounts is the next mandatory step before any deployment.
+## Security
+
+- `/api/admin/**` requires an authenticated **ADMIN** (Spring Security); everything else is denied by default
+  except the public catalogue, auth endpoints and `/actuator/health`.
+- **Session cookie** (HttpOnly, SameSite=Lax, 2 h idle timeout; set `server.servlet.session.cookie.secure=true`
+  behind HTTPS). No token is stored in JavaScript. New session id on login.
+- **CSRF** on every write: `XSRF-TOKEN` cookie → `X-XSRF-TOKEN` header (automatic in Angular).
+- **Passwords** stored only as bcrypt hashes (`admin_user` table). Same error for wrong password and unknown email.
+- **Brute force:** 5 failed logins on an account → locked 15 minutes.
+- **Audit log** (`tn.gezenthi.audit` logger): `LOGIN_OK`, `LOGIN_FAILED`, `LOGIN_LOCKED`, `LOGOUT` with IP.
+- **First admin** is created at startup from `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD`
+  (local: `%USERPROFILE%\.gezenthi\db.env`; never committed). There is no default password.
 
 ## Database
 

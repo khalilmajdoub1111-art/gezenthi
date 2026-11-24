@@ -21,7 +21,8 @@ appear on the public site on next load.
 - Offer types are declared once in `src/app/admin/admin-entities.ts` (fields, columns, defaults);
   one generic list page and one generic form page serve all of them.
 - The form validates client-side; the server validates again and its field errors are shown under each field.
-- **Demo login only — not secure.** Real authentication (Spring Security) is required before going live.
+- **Login** at `/admin/login` (session cookie set by the API). `adminGuard` checks the session with
+  `/api/auth/me`; an expired session on any admin call sends you back to the login page.
 
 ## Project structure
 
@@ -33,7 +34,7 @@ src/app/
     services/     CatalogService  — public site, GET /api/public/catalog (published only)
                   CatalogStore    — admin CRUD, /api/admin/{type}
                   ApiError        — normalises server problem-details errors
-                  DemoAuthService — demo admin gate (NOT security)
+                  AuthService     — login/logout/me, adminGuard, session-expired interceptor
   admin/          Admin panel: login, shell, dashboard, generic list + form, entity configs
   layout/         Public layout, Header (services bar + mega-menus + mobile drawer), Footer
   pages/home/     Landing page + hero search widget
@@ -44,7 +45,7 @@ public/logo.png   Brand logo (transparent background)
 
 ## Before going live
 
-- Admin authentication (backend + login page).
+- HTTPS + `secure` session cookie on the server; "change password" / manage admins screens.
 - Photos uploaded from the admin are stored as data URLs in the DB for now → move to real file storage.
 - **No customer data is collected yet.** Search and newsletter forms are intercepted client-side.
 - Demo offers are fictional (backend `db/dev-seed`); the email in `AGENCY_CONTACT` is a placeholder.

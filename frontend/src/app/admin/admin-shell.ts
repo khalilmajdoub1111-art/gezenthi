@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { DemoAuthService } from '../core/services/demo-auth.service';
+import { AuthService } from '../core/services/auth.service';
 import { Icon } from '../shared/icon/icon';
 import { ADMIN_ENTITIES } from './admin-entities';
 
@@ -56,9 +56,9 @@ import { ADMIN_ENTITIES } from './admin-entities';
     </div>
 
     <div class="lg:pl-64">
-      <div class="flex items-center gap-2 border-b border-gold-200 bg-gold-50 px-4 py-2 text-xs text-slate-700 sm:px-8">
-        <app-icon name="shield" [size]="14" class="text-gold-600" />
-        <span><strong>Développement</strong> — données enregistrées dans la base PostgreSQL. Connexion admin non sécurisée pour l’instant.</span>
+      <div class="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-600 sm:px-8">
+        <app-icon name="shield" [size]="14" class="text-emerald-600" />
+        <span>Connecté en tant que <strong class="text-brand-950">{{ auth.user()?.displayName }}</strong> ({{ auth.user()?.email }})</span>
       </div>
       <main class="mx-auto max-w-6xl px-4 py-8 sm:px-8">
         <router-outlet />
@@ -67,12 +67,12 @@ import { ADMIN_ENTITIES } from './admin-entities';
   `,
 })
 export class AdminShell {
-  private readonly auth = inject(DemoAuthService);
+  protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   protected readonly entities = ADMIN_ENTITIES;
 
-  logout(): void {
-    this.auth.logout();
+  async logout(): Promise<void> {
+    await this.auth.logout();
     void this.router.navigateByUrl('/admin/login');
   }
 }
