@@ -62,12 +62,13 @@ export const MAIN_NAV: NavItem[] = [
   },
 ];
 
-/** Placeholder contact details — replace with the agency's real ones. */
+/** Agency contact details. Email is still a placeholder until the client provides one. */
 export const AGENCY_CONTACT = {
-  phone: '+216 00 000 000',
-  phoneHref: 'tel:+21600000000',
+  phone: '+216 56 762 281',
+  phoneHref: 'tel:+21656762281',
   email: 'contact@gezenthi.tn',
-  address: 'Tunis, Tunisie',
+  address: 'Avenue Mohamed Kedidi, Nabeul, Tunisie',
+  mapUrl: 'https://www.google.com/maps/search/?api=1&query=Avenue+Mohamed+Kedidi+Nabeul+Tunisie',
 };
 
 function toLink(label: string) {

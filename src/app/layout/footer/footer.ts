@@ -42,7 +42,8 @@ import { Icon } from '../../shared/icon/icon';
         <div>
           <h3 class="font-display text-base font-semibold text-white">Contact</h3>
           <ul class="mt-4 space-y-3 text-sm">
-            <li class="flex items-start gap-3"><app-icon name="pin" [size]="18" class="mt-0.5 text-gold-300" /> {{ contact.address }}</li>
+            <li class="flex items-start gap-3"><app-icon name="pin" [size]="18" class="mt-0.5 text-gold-300" />
+              <a [href]="contact.mapUrl" target="_blank" rel="noopener noreferrer" class="hover:text-gold-300">{{ contact.address }}</a></li>
             <li class="flex items-center gap-3"><app-icon name="phone" [size]="18" class="text-gold-300" />
               <a [href]="contact.phoneHref" class="hover:text-gold-300">{{ contact.phone }}</a></li>
             <li class="flex items-center gap-3"><app-icon name="mail" [size]="18" class="text-gold-300" />
