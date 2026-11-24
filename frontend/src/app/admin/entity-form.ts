@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { ApiError } from '../core/services/api-error';
 import { CatalogStore } from '../core/services/catalog-store';
 import { Icon } from '../shared/icon/icon';
 import { imageFileToDataUrl } from '../shared/image-utils';
@@ -14,7 +15,14 @@ type Item = Record<string, unknown> & { id: string; published: boolean };
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    @if (cfg) {
+    @if (loadError(); as err) {
+      <div class="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-rose-200" role="alert">
+        {{ err }} <a [routerLink]="['/admin', entity()]" class="ml-2 underline">Retour à la liste</a>
+      </div>
+    } @else if (!ready()) {
+      <p class="text-slate-500">Chargement…</p>
+    }
+    @if (ready() && cfg) {
       <a [routerLink]="['/admin', cfg.key]" class="text-sm text-slate-500 hover:text-brand-600">← {{ cfg.label }}</a>
       <h1 class="mt-1 font-display text-3xl font-bold text-brand-950">
         {{ existing ? 'Modifier' : 'Ajouter' }} {{ existing ? '« ' + existing[cfg.titleField] + ' »' : 'un ' + cfg.singular }}
@@ -97,8 +105,8 @@ type Item = Record<string, unknown> & { id: string; published: boolean };
 
         <div class="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
           <a [routerLink]="['/admin', cfg.key]" class="rounded-xl px-5 py-3 text-center font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50">Annuler</a>
-          <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white shadow-lg shadow-brand-600/25 transition hover:bg-brand-700">
-            <app-icon name="check" [size]="18" [stroke]="2.4" /> Enregistrer
+          <button type="submit" [disabled]="saving()" class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white shadow-lg shadow-brand-600/25 transition hover:bg-brand-700 disabled:opacity-60">
+            <app-icon name="check" [size]="18" [stroke]="2.4" /> {{ saving() ? 'Enregistrement…' : 'Enregistrer' }}
           </button>
         </div>
       </form>
@@ -120,10 +128,13 @@ export class EntityForm implements OnInit {
   protected readonly uploading = signal(false);
   protected readonly uploadError = signal<string | null>(null);
   protected readonly saveError = signal<string | null>(null);
+  protected readonly loadError = signal<string | null>(null);
+  protected readonly ready = signal(false);
+  protected readonly saving = signal(false);
   protected readonly inputClass =
     'w-full rounded-xl bg-slate-50 px-4 py-3 text-sm text-brand-950 ring-1 ring-slate-200 transition placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-400';
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.cfg = findEntity(this.entity());
     if (!this.cfg) {
       void this.router.navigateByUrl('/admin');
@@ -131,9 +142,10 @@ export class EntityForm implements OnInit {
     }
     const id = this.id();
     if (id) {
-      this.existing = this.store.get(this.cfg.key, id) as Item | undefined;
-      if (!this.existing) {
-        void this.router.navigate(['/admin', this.cfg.key]);
+      try {
+        this.existing = (await this.store.get(this.cfg.key, id)) as unknown as Item;
+      } catch (err) {
+        this.loadError.set(ApiError.from(err).message);
         return;
       }
     }
@@ -143,6 +155,7 @@ export class EntityForm implements OnInit {
       const value = f.type === 'tags' ? ((raw as string[] | undefined) ?? []).join(', ') : f.type === 'checkbox' ? Boolean(raw) : (raw ?? (f.type === 'number' ? null : ''));
       this.form.addControl(f.key, new FormControl(value, this.validators(f)));
     }
+    this.ready.set(true);
   }
 
   protected isDataUrl(value: unknown): boolean {
@@ -160,6 +173,7 @@ export class EntityForm implements OnInit {
     if (e['min']) return `Minimum : ${f.min}.`;
     if (e['max']) return `Maximum : ${f.max}.`;
     if (e['pattern']) return 'Lien invalide (doit commencer par https://).';
+    if (e['server']) return String(e['server']);
     return 'Valeur invalide.';
   }
 
@@ -179,29 +193,35 @@ export class EntityForm implements OnInit {
     }
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     this.submitted.set(true);
     this.saveError.set(null);
-    if (this.form.invalid || !this.cfg) return;
+    if (this.form.invalid || !this.cfg || this.saving()) return;
 
     const item: Item = { ...(this.cfg.defaults as object), ...(this.existing ?? {}) } as Item;
     for (const f of this.cfg.fields) {
       const v = this.form.controls[f.key].value;
       if (f.type === 'tags') item[f.key] = String(v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-      else if (f.type === 'number') item[f.key] = v === null || v === '' ? undefined : Number(v);
+      else if (f.type === 'number') item[f.key] = v === null || v === '' ? null : Number(v);
       else if (f.type === 'text' || f.type === 'textarea') item[f.key] = String(v ?? '').trim();
       else item[f.key] = v;
     }
-    item.id = this.existing?.id ?? crypto.randomUUID();
 
+    this.saving.set(true);
     try {
-      this.store.save(this.cfg.key, item as never);
+      const saved = (await this.store.save(this.cfg.key, item as never)) as unknown as Item;
+      const title = String(saved[this.cfg.titleField]);
+      void this.router.navigate(['/admin', this.cfg.key], { state: { flash: `« ${title} » a été enregistré.` } });
     } catch (err) {
-      this.saveError.set(err instanceof Error ? err.message : 'Enregistrement impossible.');
-      return;
+      const apiErr = ApiError.from(err);
+      // Show server-side validation messages under the matching fields.
+      for (const [field, message] of Object.entries(apiErr.fieldErrors)) {
+        this.form.controls[field]?.setErrors({ server: message });
+      }
+      this.saveError.set(apiErr.message);
+    } finally {
+      this.saving.set(false);
     }
-    const title = String(item[this.cfg.titleField]);
-    void this.router.navigate(['/admin', this.cfg.key], { state: { flash: `« ${title} » a été enregistré.` } });
   }
 
   private validators(f: FieldDef): ValidatorFn[] {

@@ -58,7 +58,7 @@ import { ADMIN_ENTITIES } from './admin-entities';
     <div class="lg:pl-64">
       <div class="flex items-center gap-2 border-b border-gold-200 bg-gold-50 px-4 py-2 text-xs text-slate-700 sm:px-8">
         <app-icon name="shield" [size]="14" class="text-gold-600" />
-        <span><strong>Mode démo</strong> — les modifications sont enregistrées uniquement dans ce navigateur.</span>
+        <span><strong>Développement</strong> — données enregistrées dans la base PostgreSQL. Connexion admin non sécurisée pour l’instant.</span>
       </div>
       <main class="mx-auto max-w-6xl px-4 py-8 sm:px-8">
         <router-outlet />

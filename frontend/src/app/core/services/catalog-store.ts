@@ -1,104 +1,83 @@
-import { Injectable, Signal, WritableSignal, signal } from '@angular/core';
-import { SEED_CATALOG } from '../data/mock-catalog';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CatalogData, CatalogKey } from '../models/travel.models';
+import { ApiError } from './api-error';
 
-const STORAGE_KEY = 'gezenthi.catalog.v1';
-
-export class StorageFullError extends Error {}
+type Item<K extends CatalogKey> = CatalogData[K][number];
 
 /**
- * Admin-managed catalogue (hotels, trips, Omra, flights, services).
- *
- * PROTOTYPE PERSISTENCE: data lives in this browser's localStorage, so each
- * browser has its own copy. When the Spring Boot API exists, replace load/persist
- * with HTTP calls; the public signature (list/get/save/remove) stays the same.
+ * Admin-side catalogue, backed by the Spring Boot API (/api/admin/{key}).
+ * Holds one signal per offer type; every write goes to the server first and
+ * the local list is only updated with what the server returned.
  */
 @Injectable({ providedIn: 'root' })
 export class CatalogStore {
-  private readonly state: { [K in CatalogKey]: WritableSignal<CatalogData[K]> };
+  private readonly http = inject(HttpClient);
+  private readonly base = '/api/admin';
 
-  constructor() {
-    const initial = this.load();
-    this.state = {
-      hotels: signal(initial.hotels),
-      trips: signal(initial.trips),
-      omra: signal(initial.omra),
-      flights: signal(initial.flights),
-      services: signal(initial.services),
-    };
-  }
+  private readonly state: { [K in CatalogKey]: WritableSignal<CatalogData[K]> } = {
+    hotels: signal([]),
+    trips: signal([]),
+    omra: signal([]),
+    flights: signal([]),
+    services: signal([]),
+  };
+  readonly loadError = signal<string | null>(null);
+  readonly loading = signal(false);
 
+  /** Current list for a type (call refresh() to fetch it from the server). */
   list<K extends CatalogKey>(key: K): Signal<CatalogData[K]> {
     return this.state[key].asReadonly();
   }
 
-  get<K extends CatalogKey>(key: K, id: string): CatalogData[K][number] | undefined {
-    return (this.state[key]() as CatalogData[K][number][]).find((item) => item.id === id);
-  }
-
-  /** Inserts a new item (no id / unknown id) or replaces the existing one. */
-  save<K extends CatalogKey>(key: K, item: CatalogData[K][number]): void {
-    const current = this.state[key]() as CatalogData[K][number][];
-    const exists = current.some((i) => i.id === item.id);
-    const next = exists ? current.map((i) => (i.id === item.id ? item : i)) : [item, ...current];
-    this.commit(key, next as CatalogData[K]);
-  }
-
-  remove<K extends CatalogKey>(key: K, id: string): void {
-    const next = (this.state[key]() as CatalogData[K][number][]).filter((i) => i.id !== id);
-    this.commit(key, next as CatalogData[K]);
-  }
-
-  /** Restores the original demo content. */
-  reset(): void {
+  async refresh(...keys: CatalogKey[]): Promise<void> {
+    this.loading.set(true);
     try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* storage unavailable: in-memory reset only */
-    }
-    const seed = structuredClone(SEED_CATALOG);
-    (Object.keys(seed) as CatalogKey[]).forEach((k) => this.state[k].set(seed[k] as never));
-  }
-
-  private commit<K extends CatalogKey>(key: K, value: CatalogData[K]): void {
-    const previous = this.state[key]();
-    this.state[key].set(value);
-    try {
-      this.persist();
+      await Promise.all(
+        keys.map(async (key) => {
+          const items = await firstValueFrom(this.http.get<CatalogData[typeof key]>(`${this.base}/${key}`));
+          this.state[key].set(items as never);
+        }),
+      );
+      this.loadError.set(null);
     } catch (err) {
-      this.state[key].set(previous); // keep UI and storage consistent
-      throw err;
+      this.loadError.set(ApiError.from(err).message);
+    } finally {
+      this.loading.set(false);
     }
   }
 
-  private persist(): void {
-    const snapshot = Object.fromEntries((Object.keys(this.state) as CatalogKey[]).map((k) => [k, this.state[k]()]));
+  async get<K extends CatalogKey>(key: K, id: string): Promise<Item<K>> {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      return await firstValueFrom(this.http.get<Item<K>>(`${this.base}/${key}/${encodeURIComponent(id)}`));
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'QuotaExceededError') {
-        throw new StorageFullError('Stockage du navigateur plein : utilisez des images plus légères ou des liens URL.');
-      }
-      throw err;
+      throw ApiError.from(err);
     }
   }
 
-  private load(): CatalogData {
-    const seed = structuredClone(SEED_CATALOG);
+  /** Creates (no id) or updates (with id). Returns the item as saved by the server. */
+  async save<K extends CatalogKey>(key: K, item: Partial<Item<K>>): Promise<Item<K>> {
+    const { id, updatedAt: _ignored, ...body } = item as Item<K>;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return seed;
-      const saved = JSON.parse(raw) as Partial<CatalogData>;
-      // Fall back per collection so a missing/corrupt key never breaks the site.
-      return {
-        hotels: Array.isArray(saved.hotels) ? saved.hotels : seed.hotels,
-        trips: Array.isArray(saved.trips) ? saved.trips : seed.trips,
-        omra: Array.isArray(saved.omra) ? saved.omra : seed.omra,
-        flights: Array.isArray(saved.flights) ? saved.flights : seed.flights,
-        services: Array.isArray(saved.services) ? saved.services : seed.services,
-      };
-    } catch {
-      return seed;
+      const saved = id
+        ? await firstValueFrom(this.http.put<Item<K>>(`${this.base}/${key}/${encodeURIComponent(id)}`, body))
+        : await firstValueFrom(this.http.post<Item<K>>(`${this.base}/${key}`, body));
+      const current = this.state[key]() as Item<K>[];
+      const next = current.some((i) => i.id === saved.id) ? current.map((i) => (i.id === saved.id ? saved : i)) : [saved, ...current];
+      this.state[key].set(next as CatalogData[K]);
+      return saved;
+    } catch (err) {
+      throw ApiError.from(err);
+    }
+  }
+
+  async remove<K extends CatalogKey>(key: K, id: string): Promise<void> {
+    try {
+      await firstValueFrom(this.http.delete<void>(`${this.base}/${key}/${encodeURIComponent(id)}`));
+      this.state[key].update((list) => (list as Item<K>[]).filter((i) => i.id !== id) as CatalogData[K]);
+    } catch (err) {
+      throw ApiError.from(err);
     }
   }
 }

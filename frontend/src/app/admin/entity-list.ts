@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { CatalogKey } from '../core/models/travel.models';
+import { ApiError } from '../core/services/api-error';
 import { CatalogStore } from '../core/services/catalog-store';
 import { Icon } from '../shared/icon/icon';
 import { ColumnDef, findEntity } from './admin-entities';
@@ -31,8 +32,8 @@ type Row = Record<string, unknown> & { id: string; published: boolean };
           <app-icon name="check" [size]="18" [stroke]="2.4" /> {{ flash() }}
         </div>
       }
-      @if (error()) {
-        <div class="mt-6 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-rose-200" role="alert">{{ error() }}</div>
+      @if (error() || store.loadError(); as message) {
+        <div class="mt-6 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-rose-200" role="alert">{{ message }}</div>
       }
 
       <div class="mt-6 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-brand-300">
@@ -78,7 +79,7 @@ type Row = Record<string, unknown> & { id: string; published: boolean };
           </div>
         } @empty {
           <div class="p-12 text-center text-slate-500">
-            {{ query() ? 'Aucun résultat pour « ' + query() + ' ».' : 'Aucune offre pour le moment.' }}
+            {{ store.loading() ? 'Chargement…' : query() ? 'Aucun résultat pour « ' + query() + ' ».' : 'Aucune offre pour le moment.' }}
           </div>
         }
       </div>
@@ -89,7 +90,7 @@ export class EntityList {
   /** Bound from the :entity route parameter. */
   readonly entity = input.required<string>();
 
-  private readonly store = inject(CatalogStore);
+  protected readonly store = inject(CatalogStore);
   private readonly router = inject(Router);
 
   protected readonly config = computed(() => findEntity(this.entity()));
@@ -107,8 +108,14 @@ export class EntityList {
   protected readonly error = signal<string | null>(null);
 
   constructor() {
+    // Load fresh data from the server each time the offer type changes.
     effect(() => {
-      if (!this.config()) void this.router.navigateByUrl('/admin');
+      const cfg = this.config();
+      if (!cfg) {
+        void this.router.navigateByUrl('/admin');
+        return;
+      }
+      untracked(() => void this.store.refresh(cfg.key));
     });
   }
 
@@ -122,14 +129,14 @@ export class EntityList {
     }
   }
 
-  protected togglePublished(row: Row): void {
-    this.write(() => this.store.save(this.key(), { ...row, published: !row.published } as never));
+  protected async togglePublished(row: Row): Promise<void> {
+    await this.write(() => this.store.save(this.key(), { ...row, published: !row.published } as never));
   }
 
-  protected remove(row: Row): void {
+  protected async remove(row: Row): Promise<void> {
     const title = String(row[this.config()!.titleField]);
-    if (confirm(`Supprimer « ${title} » ? Cette action est définitive.`)) {
-      this.write(() => this.store.remove(this.key(), row.id));
+    if (!confirm(`Supprimer « ${title} » ? Cette action est définitive.`)) return;
+    if (await this.write(() => this.store.remove(this.key(), row.id))) {
       this.flash.set(`« ${title} » a été supprimé.`);
     }
   }
@@ -138,12 +145,16 @@ export class EntityList {
     return this.config()!.key;
   }
 
-  private write(action: () => void): void {
+  /** Runs a server write and shows its error; returns true on success. */
+  private async write(action: () => Promise<unknown>): Promise<boolean> {
     this.error.set(null);
+    this.flash.set(null);
     try {
-      action();
+      await action();
+      return true;
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      this.error.set(ApiError.from(err).message);
+      return false;
     }
   }
 }

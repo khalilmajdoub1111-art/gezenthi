@@ -10,16 +10,19 @@ import { ADMIN_ENTITIES } from './admin-entities';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div>
-        <h1 class="font-display text-3xl font-bold text-brand-950">Tableau de bord</h1>
-        <p class="mt-1 text-slate-500">Tout ce que vous publiez ici apparaît immédiatement sur le site.</p>
-      </div>
-      <button type="button" (click)="reset()"
-              class="inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm font-medium text-slate-500 ring-1 ring-slate-200 transition hover:bg-white hover:text-rose-600">
-        <app-icon name="refresh" [size]="16" /> Réinitialiser les données de démo
-      </button>
+    <div>
+      <h1 class="font-display text-3xl font-bold text-brand-950">Tableau de bord</h1>
+      <p class="mt-1 text-slate-500">Tout ce que vous publiez ici apparaît immédiatement sur le site.</p>
     </div>
+
+    @if (store.loadError(); as err) {
+      <div class="mt-6 flex flex-col gap-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200 sm:flex-row sm:items-center sm:justify-between" role="alert">
+        <span>{{ err }}</span>
+        <button type="button" (click)="reload()" class="inline-flex items-center gap-2 self-start rounded-lg bg-white px-3 py-1.5 font-semibold ring-1 ring-rose-200">
+          <app-icon name="refresh" [size]="14" /> Réessayer
+        </button>
+      </div>
+    }
 
     <div class="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
       @for (c of cards(); track c.key) {
@@ -27,7 +30,7 @@ import { ADMIN_ENTITIES } from './admin-entities';
           <div class="flex items-start justify-between">
             <span class="grid size-12 place-items-center rounded-2xl bg-brand-50 text-brand-600"><app-icon [name]="c.icon" [size]="24" /></span>
             <span class="text-right">
-              <span class="block font-display text-3xl font-bold text-brand-950">{{ c.total }}</span>
+              <span class="block font-display text-3xl font-bold text-brand-950">{{ store.loading() && !c.total ? '…' : c.total }}</span>
               <span class="text-xs text-slate-500">{{ c.published }} publié(s)</span>
             </span>
           </div>
@@ -45,7 +48,7 @@ import { ADMIN_ENTITIES } from './admin-entities';
   `,
 })
 export class AdminDashboard {
-  private readonly store = inject(CatalogStore);
+  protected readonly store = inject(CatalogStore);
 
   protected readonly cards = computed(() =>
     ADMIN_ENTITIES.map((e) => {
@@ -54,9 +57,11 @@ export class AdminDashboard {
     }),
   );
 
-  reset(): void {
-    if (confirm('Remettre toutes les offres de démonstration ? Vos ajouts et modifications seront perdus.')) {
-      this.store.reset();
-    }
+  constructor() {
+    this.reload();
+  }
+
+  protected reload(): void {
+    void this.store.refresh(...ADMIN_ENTITIES.map((e) => e.key));
   }
 }

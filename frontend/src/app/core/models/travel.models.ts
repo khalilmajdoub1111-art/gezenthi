@@ -9,9 +9,12 @@ export type BoardType = (typeof BOARD_TYPES)[number];
 
 /** Fields every manageable offer shares. */
 export interface CatalogEntity {
+  /** Assigned by the server (UUID). */
   id: string;
   /** Hidden from the public site when false (draft / sold out). */
   published: boolean;
+  /** Last modification, set by the server (ISO date). */
+  updatedAt?: string;
 }
 
 export interface Hotel extends CatalogEntity {
@@ -23,7 +26,7 @@ export interface Hotel extends CatalogEntity {
   reviews: number;
   board: BoardType;
   pricePerNight: number; // TND, per person
-  oldPrice?: number; // TND, shown struck-through when on promo
+  oldPrice?: number | null; // TND, shown struck-through when on promo
   image: string;
   tags: string[];
 }
@@ -36,14 +39,14 @@ export interface Destination extends CatalogEntity {
   priceFrom: number; // TND, per person
   image: string;
   noVisa?: boolean;
-  badge?: string;
+  badge?: string | null;
 }
 
 export interface OmraProgram extends CatalogEntity {
   title: string;
   durationDays: number;
   departure: string; // free text, e.g. "15 mars 2027"
-  hotelDistance: number; // metres from the Haram
+  hotelDistance?: number | null; // metres from the Haram
   priceFrom: number; // TND, per person
   image: string;
   includes: string[];
@@ -62,7 +65,7 @@ export type ServiceKind = (typeof SERVICE_KINDS)[number];
 export interface ServiceOffer extends CatalogEntity {
   kind: ServiceKind;
   title: string;
-  priceFrom?: number; // TND
+  priceFrom?: number | null; // TND
   description: string;
 }
 

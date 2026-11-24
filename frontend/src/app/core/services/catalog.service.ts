@@ -1,22 +1,35 @@
-import { Injectable, Signal, computed, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HERO_IMAGES, PROMO_IMAGES, SERVICES, TESTIMONIALS } from '../data/mock-catalog';
-import { CatalogData, CatalogKey, ServiceItem, Testimonial } from '../models/travel.models';
-import { CatalogStore } from './catalog-store';
+import { CatalogData, ServiceItem, Testimonial } from '../models/travel.models';
+
+const EMPTY: CatalogData = { hotels: [], trips: [], omra: [], flights: [], services: [] };
 
 /**
- * Read-only catalogue for the PUBLIC site: only published items.
- * Components never touch the store directly, so switching to the
- * Spring Boot API later only affects CatalogStore.
+ * Read-only catalogue for the PUBLIC site, from GET /api/public/catalog
+ * (published items only, filtered by the server). Loaded once per visit.
  */
 @Injectable({ providedIn: 'root' })
 export class CatalogService {
-  private readonly store = inject(CatalogStore);
+  private readonly http = inject(HttpClient);
+  private readonly data = signal<CatalogData>(EMPTY);
+  readonly status = signal<'loading' | 'ready' | 'error'>('loading');
 
-  readonly hotels = this.published('hotels');
-  readonly trips = this.published('trips');
-  readonly omra = this.published('omra');
-  readonly flights = this.published('flights');
-  readonly services = this.published('services');
+  readonly hotels = computed(() => this.data().hotels);
+  readonly trips = computed(() => this.data().trips);
+  readonly omra = computed(() => this.data().omra);
+  readonly flights = computed(() => this.data().flights);
+  readonly services = computed(() => this.data().services);
+
+  constructor() {
+    this.http.get<CatalogData>('/api/public/catalog').subscribe({
+      next: (catalog) => {
+        this.data.set(catalog);
+        this.status.set('ready');
+      },
+      error: () => this.status.set('error'),
+    });
+  }
 
   heroImages(): string[] {
     return HERO_IMAGES;
@@ -32,10 +45,5 @@ export class CatalogService {
 
   testimonials(): Testimonial[] {
     return TESTIMONIALS;
-  }
-
-  private published<K extends CatalogKey>(key: K): Signal<CatalogData[K]> {
-    const all = this.store.list(key);
-    return computed(() => (all() as CatalogData[K][number][]).filter((i) => i.published) as CatalogData[K]);
   }
 }

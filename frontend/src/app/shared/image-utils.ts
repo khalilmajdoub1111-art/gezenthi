@@ -1,7 +1,7 @@
 /**
- * Reads an uploaded image, scales it down and re-encodes it as JPEG so it fits
- * in browser storage (prototype). With the backend, files will be uploaded to
- * the server / object storage instead and only their URL stored.
+ * Reads an uploaded image, scales it down and re-encodes it as JPEG (data URL),
+ * which the API stores as-is for now. TODO: real file upload endpoint + storage,
+ * keeping only the image URL in the database.
  */
 export async function imageFileToDataUrl(file: File, maxSize = 1200, quality = 0.8): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('Le fichier doit être une image.');
