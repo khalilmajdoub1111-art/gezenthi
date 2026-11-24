@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------
+   Gezenthi design tokens — derived from the brand logo
+   Brand blue  #156AB3   Brand gold  #FFC523
+   ------------------------------------------------------------------ */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Poppins', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #eef6fd;
+  --color-brand-100: #d6e9f8;
+  --color-brand-200: #aed3f1;
+  --color-brand-300: #7bb6e6;
+  --color-brand-400: #4392d4;
+  --color-brand-500: #1f78c2;
+  --color-brand-600: #156ab3;
+  --color-brand-700: #115592;
+  --color-brand-800: #0f4675;
+  --color-brand-900: #0c3459;
+  --color-brand-950: #071f37;
+
+  --color-gold-50: #fff9e6;
+  --color-gold-100: #fff0bf;
+  --color-gold-200: #ffe38a;
+  --color-gold-300: #ffd654;
+  --color-gold-400: #ffc523;
+  --color-gold-500: #f2ad0a;
+  --color-gold-600: #cc8a05;
+
+  --color-sand: #fbf7f0;
+
+  --animate-fade-up: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-ken-burns: ken-burns 14s ease-out both;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes ken-burns {
+  from { transform: scale(1.12); }
+  to { transform: scale(1); }
+}
+
+html { scroll-behavior: smooth; }
+body {
+  @apply bg-white font-sans text-slate-800 antialiased;
+}
+
+/* Scroll-reveal (driven by RevealDirective) */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.22,1,.36,1), transform .8s cubic-bezier(.22,1,.36,1); }
+.reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

@@ -1,0 +1,154 @@
+<!-- Top utility bar -->
+<div class="hidden bg-brand-950 text-[13px] text-brand-100 md:block">
+  <div class="mx-auto flex h-10 max-w-7xl items-center justify-between px-6">
+    <div class="flex items-center gap-6">
+      <a [href]="contact.phoneHref" class="flex items-center gap-2 font-semibold text-white transition hover:text-gold-300">
+        <app-icon name="phone" [size]="15" /> {{ contact.phone }}
+      </a>
+      <a [href]="'mailto:' + contact.email" class="flex items-center gap-2 transition hover:text-gold-300">
+        <app-icon name="mail" [size]="15" /> {{ contact.email }}
+      </a>
+      <span class="flex items-center gap-2"><app-icon name="clock" [size]="15" /> Lun – Sam · 8h30 – 18h30</span>
+    </div>
+    <div class="flex items-center gap-5">
+      <a href="#contact" class="transition hover:text-gold-300">Nos agences</a>
+      <a href="#contact" class="transition hover:text-gold-300">Espace entreprises</a>
+      <a href="#contact" class="transition hover:text-gold-300">Coffret cadeau</a>
+      <span class="h-4 w-px bg-brand-700"></span>
+      <a href="#contact" class="font-semibold text-gold-300 transition hover:text-gold-200">Contact</a>
+    </div>
+  </div>
+</div>
+
+<!-- Main bar -->
+<header
+  class="sticky top-0 z-50 border-b transition-all duration-300"
+  [class]="scrolled() ? 'border-slate-200/70 bg-white/90 shadow-lg shadow-brand-950/5 backdrop-blur-xl' : 'border-transparent bg-white'"
+>
+  <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 transition-all duration-300 sm:px-6"
+       [class]="scrolled() ? 'h-16' : 'h-20'">
+    <a href="#" class="flex shrink-0 items-center gap-3" aria-label="Gezenthi Travel Agency — accueil">
+      <img src="logo.png" alt="Gezenthi Travel Agency" class="w-auto transition-all duration-300" [class]="scrolled() ? 'h-11' : 'h-14'" />
+    </a>
+
+    <!-- Desktop services bar -->
+    <nav class="hidden xl:block" aria-label="Services">
+      <ul class="flex items-center gap-0.5">
+        @for (item of nav; track item.label) {
+          <li class="group relative">
+            <a
+              [href]="item.href"
+              class="flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-2 text-[13.5px] font-semibold text-brand-900 transition hover:bg-brand-50 hover:text-brand-600 2xl:px-3 2xl:text-[14px]"
+            >
+              {{ item.label }}
+              @if (item.groups) {
+                <app-icon name="chevron-down" [size]="14" [stroke]="2.5" class="transition group-hover:rotate-180" />
+              }
+            </a>
+
+            @if (item.groups) {
+              <div
+                class="invisible absolute left-1/2 top-full z-50 -translate-x-1/2 translate-y-2 pt-3 opacity-0 transition duration-200 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100"
+              >
+                <div class="w-max min-w-56 overflow-hidden rounded-2xl bg-white p-5 shadow-2xl shadow-brand-950/15 ring-1 ring-slate-100">
+                  <div class="flex gap-8">
+                    @for (group of item.groups; track $index) {
+                      <div class="min-w-40">
+                        @if (group.title) {
+                          <p class="mb-2 text-[11px] font-bold uppercase tracking-wider text-gold-600">{{ group.title }}</p>
+                        }
+                        <ul class="space-y-0.5" [class.columns-2]="group.links.length > 7" [class.gap-6]="group.links.length > 7">
+                          @for (link of group.links; track link.label) {
+                            <li>
+                              <a
+                                [href]="link.href"
+                                class="group/link flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition hover:bg-brand-50 hover:text-brand-700"
+                              >
+                                <span class="size-1.5 rounded-full bg-gold-400 transition group-hover/link:scale-150"></span>
+                                {{ link.label }}
+                              </a>
+                            </li>
+                          }
+                        </ul>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <a
+        [href]="contact.phoneHref"
+        [attr.aria-label]="'Appeler le ' + contact.phone"
+        class="hidden items-center gap-2.5 rounded-full bg-gradient-to-r from-gold-400 to-gold-300 p-1.5 font-semibold text-brand-950 shadow-md shadow-gold-400/30 transition hover:shadow-lg hover:shadow-gold-400/50 sm:flex 2xl:py-2 2xl:pl-2 2xl:pr-4"
+      >
+        <span class="grid size-8 place-items-center rounded-full bg-brand-950 text-gold-300">
+          <app-icon name="phone" [size]="15" />
+        </span>
+        <span class="whitespace-nowrap text-sm sm:inline xl:hidden 2xl:inline">{{ contact.phone }}</span>
+      </a>
+      <button
+        type="button"
+        class="grid size-11 place-items-center rounded-full text-brand-900 transition hover:bg-brand-50 xl:hidden"
+        aria-label="Ouvrir le menu"
+        [attr.aria-expanded]="mobileOpen()"
+        (click)="toggleMobile()"
+      >
+        <app-icon name="menu" [size]="24" />
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile drawer -->
+@if (mobileOpen()) {
+  <div class="fixed inset-0 z-[60] xl:hidden">
+    <div class="absolute inset-0 bg-brand-950/50 backdrop-blur-sm animate-[fade-up_.3s_ease-out]" (click)="closeMobile()"></div>
+    <aside class="absolute right-0 top-0 flex h-full w-[min(88vw,380px)] flex-col bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <img src="logo.png" alt="Gezenthi" class="h-11" />
+        <button type="button" class="grid size-10 place-items-center rounded-full hover:bg-slate-100" aria-label="Fermer le menu" (click)="closeMobile()">
+          <app-icon name="close" [size]="22" />
+        </button>
+      </div>
+      <nav class="flex-1 overflow-y-auto px-3 py-3" aria-label="Services">
+        @for (item of nav; track item.label) {
+          <div class="border-b border-slate-50">
+            @if (item.groups) {
+              <button
+                type="button"
+                class="flex w-full items-center justify-between rounded-xl px-3 py-3.5 text-left font-semibold text-brand-900"
+                [attr.aria-expanded]="mobileExpanded() === item.label"
+                (click)="toggleSection(item.label)"
+              >
+                {{ item.label }}
+                <app-icon name="chevron-down" [size]="18" class="transition" [class.rotate-180]="mobileExpanded() === item.label" />
+              </button>
+              @if (mobileExpanded() === item.label) {
+                <div class="grid grid-cols-2 gap-1 px-3 pb-3">
+                  @for (group of item.groups; track $index) {
+                    @for (link of group.links; track link.label) {
+                      <a [href]="link.href" (click)="closeMobile()" class="rounded-lg bg-brand-50/60 px-3 py-2 text-sm text-brand-800">{{ link.label }}</a>
+                    }
+                  }
+                </div>
+              }
+            } @else {
+              <a [href]="item.href" (click)="closeMobile()" class="block rounded-xl px-3 py-3.5 font-semibold text-brand-900">{{ item.label }}</a>
+            }
+          </div>
+        }
+      </nav>
+      <div class="border-t border-slate-100 p-5">
+        <a [href]="contact.phoneHref" class="flex items-center justify-center gap-2 rounded-full bg-gold-400 py-3 font-semibold text-brand-950">
+          <app-icon name="phone" [size]="18" /> {{ contact.phone }}
+        </a>
+      </div>
+    </aside>
+  </div>
+}
