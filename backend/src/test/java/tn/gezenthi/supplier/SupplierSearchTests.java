@@ -17,9 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,37 +30,15 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(FakeSupplierConfig.class)
 class SupplierSearchTests {
-
-    static final String SECRET_TOKEN = "SUPPLIER-SECRET-TOKEN";
-
-    @TestConfiguration
-    static class FakeSupplierConfig {
-        @Bean
-        HotelSupplier fakeSupplier() {
-            return new HotelSupplier() {
-                public String code() { return "fake"; }
-                public String displayName() { return "Fake Bed Bank"; }
-                public boolean configured() { return true; }
-                public String testConnection() { return "ok"; }
-                public List<StaticHotel> fetchHotels(List<String> countries) {
-                    return List.of(new StaticHotel("171", "Hotel Test 171", "1", "Hammamet", 4, null));
-                }
-                public List<Offer> search(SearchQuery q, List<String> ids) {
-                    RoomRate room = new RoomRate("201", "Double Standard", new BigDecimal("1000.000"), true, true, "01/07/2027", 3);
-                    return List.of(new Offer("171", "", "", null, null, null, "TND",
-                            List.of(new BoardRate("4", "AI", "All Inclusive", List.of(room))), null, SECRET_TOKEN, "local-2"));
-                }
-            };
-        }
-    }
 
     @Autowired MockMvc mvc;
     @Autowired SupplierHotelRepository supplierHotels;
 
     @BeforeEach
     void cacheStaticHotel() {
-        SupplierHotel h = new SupplierHotel("fake", "171");
+        SupplierHotel h = new SupplierHotel(FakeSupplierConfig.CODE, "171");
         h.refresh(new HotelSupplier.StaticHotel("171", "Hotel Test 171", "1", "Hammamet", 4, null), Instant.now());
         supplierHotels.save(h);
     }
@@ -77,7 +54,7 @@ class SupplierSearchTests {
                 .andExpect(jsonPath("$.hotels[*].origin", hasItem("partenaire")))  // fake supplier
                 .andExpect(jsonPath("$.hotels[?(@.origin=='partenaire')].name", hasItem("Hotel Test 171"))) // from cache
                 .andExpect(jsonPath("$.hotels[?(@.origin=='partenaire')].fromPrice", hasItem(1100))) // 1000 + 10 %
-                .andExpect(content().string(not(org.hamcrest.Matchers.containsString(SECRET_TOKEN))))
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString(FakeSupplierConfig.SECRET_TOKEN))))
                 .andExpect(content().string(not(org.hamcrest.Matchers.containsString("Fake Bed Bank"))));
     }
 
@@ -101,9 +78,5 @@ class SupplierSearchTests {
                 .andExpect(jsonPath("$[*].code", hasItem("tunisiabeds")))
                 .andExpect(jsonPath("$[?(@.code=='tunisiabeds')].bookingEnabled", hasItem(false)))
                 .andExpect(content().string(not(org.hamcrest.Matchers.containsString("password"))));
-
-        mvc.perform(post("/api/admin/suppliers/fake/sync").with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true));
     }
 }

@@ -2,10 +2,15 @@ package tn.gezenthi.supplier.ostravel;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -14,6 +19,7 @@ import org.springframework.web.client.RestClient;
 import tn.gezenthi.supplier.HotelSupplier;
 import tn.gezenthi.supplier.SupplierException;
 import tn.gezenthi.supplier.SupplierProperties;
+import tn.gezenthi.supplier.SupplierRateLimitException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -32,6 +38,11 @@ public class OsTravelSupplier implements HotelSupplier {
     private static final Logger log = LoggerFactory.getLogger(OsTravelSupplier.class);
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     static final int MAX_HOTELS_PER_SEARCH = 200;
+    static final int MAX_RATE_LIMIT_RETRIES = 4;
+    /** Known supplier limits (TunisiaBeds: "ListHotel is limited to 5 calls per minute"). Kept 1 below to be safe. */
+    private static final Map<String, Integer> CALLS_PER_MINUTE = Map.of("ListHotel", 4);
+
+    private final Map<String, Deque<Instant>> recentCalls = new HashMap<>();
 
     private final String code;
     private final SupplierProperties.Supplier config;
@@ -71,24 +82,27 @@ public class OsTravelSupplier implements HotelSupplier {
     }
 
     @Override
-    public List<StaticHotel> fetchHotels(List<String> countryCodes) {
+    public void fetchHotels(List<String> countryCodes, CityBatchListener listener) {
         List<String> wanted = countryCodes.stream().map(c -> c.toLowerCase(Locale.ROOT)).toList();
-        List<StaticHotel> hotels = new ArrayList<>();
-        for (JsonNode country : OsTravelParser.list(call("ListCountry", body()), "ListCountry")) {
+        List<JsonNode> cities = new ArrayList<>();
+        for (JsonNode country : OsTravelParser.list(callPatiently("ListCountry", body()), "ListCountry")) {
             if (!wanted.contains(OsTravelParser.text(country, "Code").toLowerCase(Locale.ROOT))) continue;
             ObjectNode cityReq = body();
             cityReq.put("Country", country.path("Id").asInt());
-            for (JsonNode city : OsTravelParser.list(call("ListCity", cityReq), "ListCity")) {
-                String cityId = OsTravelParser.text(city, "Id");
-                String cityName = OsTravelParser.text(city, "Name");
-                ObjectNode hotelReq = body();
-                hotelReq.put("City", city.path("Id").asInt());
-                for (JsonNode h : OsTravelParser.list(call("ListHotel", hotelReq), "ListHotel")) {
-                    hotels.add(OsTravelParser.staticHotel(h, cityId, cityName));
-                }
-            }
+            cities.addAll(OsTravelParser.list(callPatiently("ListCity", cityReq), "ListCity"));
         }
-        return hotels;
+        for (int i = 0; i < cities.size(); i++) {
+            JsonNode city = cities.get(i);
+            String cityId = OsTravelParser.text(city, "Id");
+            String cityName = OsTravelParser.text(city, "Name");
+            ObjectNode hotelReq = body();
+            hotelReq.put("City", city.path("Id").asInt());
+            List<StaticHotel> hotels = new ArrayList<>();
+            for (JsonNode h : OsTravelParser.list(callPatiently("ListHotel", hotelReq), "ListHotel")) {
+                hotels.add(OsTravelParser.staticHotel(h, cityId, cityName));
+            }
+            listener.onCity(cityName, i + 1, cities.size(), hotels);
+        }
     }
 
     @Override
@@ -125,6 +139,54 @@ public class OsTravelSupplier implements HotelSupplier {
         cred.put("Login", config.getLogin());
         cred.put("Password", config.getPassword());
         return root;
+    }
+
+    /**
+     * For background jobs (sync): respects the per-method rate limit and, if the supplier still
+     * answers 429, waits until its "Retry after" time and tries again (bounded).
+     * Never used for customer searches, which must answer fast.
+     */
+    private JsonNode callPatiently(String method, ObjectNode body) {
+        for (int attempt = 1; ; attempt++) {
+            throttle(method);
+            try {
+                return call(method, body);
+            } catch (SupplierRateLimitException e) {
+                if (attempt >= MAX_RATE_LIMIT_RETRIES) throw e;
+                Duration wait = e.retryAfter() == null ? Duration.ofSeconds(60)
+                        : Duration.between(Instant.now(), e.retryAfter()).plusSeconds(2);
+                if (wait.isNegative() || wait.isZero()) wait = Duration.ofSeconds(2);
+                if (wait.compareTo(Duration.ofMinutes(5)) > 0) throw e; // don't block a job for too long
+                log.info("supplier={} method={} rate-limited, waiting {}s (attempt {})", code, method, wait.toSeconds(), attempt);
+                sleep(wait);
+            }
+        }
+    }
+
+    /** Keeps at most N calls per rolling minute for methods the supplier limits. */
+    private void throttle(String method) {
+        Integer perMinute = CALLS_PER_MINUTE.get(method);
+        if (perMinute == null) return;
+        synchronized (recentCalls) {
+            Deque<Instant> calls = recentCalls.computeIfAbsent(method, m -> new ArrayDeque<>());
+            Instant windowStart = Instant.now().minusSeconds(60);
+            while (!calls.isEmpty() && calls.peekFirst().isBefore(windowStart)) calls.pollFirst();
+            if (calls.size() >= perMinute) {
+                Duration wait = Duration.between(Instant.now(), calls.peekFirst().plusSeconds(61));
+                if (!wait.isNegative()) sleep(wait);
+                calls.pollFirst();
+            }
+            calls.addLast(Instant.now());
+        }
+    }
+
+    private static void sleep(Duration d) {
+        try {
+            Thread.sleep(d);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new SupplierException("Synchronisation interrompue.");
+        }
     }
 
     private JsonNode call(String method, ObjectNode body) {

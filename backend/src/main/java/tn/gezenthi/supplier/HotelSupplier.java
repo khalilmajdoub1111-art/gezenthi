@@ -26,8 +26,18 @@ public interface HotelSupplier {
     /** Cheap authenticated call to check URL + credentials. Returns a short summary. */
     String testConnection();
 
-    /** Static catalogue: every hotel the supplier sells in the given countries (ISO codes). */
-    List<StaticHotel> fetchHotels(List<String> countryCodes);
+    /**
+     * Static catalogue: every hotel the supplier sells in the given countries (ISO codes),
+     * delivered city by city so the caller can save progressively (sync can take minutes
+     * because suppliers rate-limit these calls).
+     */
+    void fetchHotels(List<String> countryCodes, CityBatchListener listener);
+
+    @FunctionalInterface
+    interface CityBatchListener {
+        /** index is 1-based; total = number of cities to process. */
+        void onCity(String cityName, int index, int total, List<StaticHotel> hotels);
+    }
 
     /** Live availability and prices for the given supplier hotel ids (≤ 200 per call). */
     List<Offer> search(SearchQuery query, List<String> hotelIds);

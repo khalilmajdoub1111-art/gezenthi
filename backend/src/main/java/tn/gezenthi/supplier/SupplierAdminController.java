@@ -65,8 +65,8 @@ class SupplierAdminController {
     @PostMapping("/{code}/sync")
     ActionResult sync(@PathVariable String code, Authentication auth) {
         supplier(code);
-        SupplierSyncService.SyncResult r = sync.sync(code, auth == null ? "system" : auth.getName());
-        return new ActionResult("SUCCESS".equals(r.status()), r.message());
+        SupplierSyncService.SyncResult r = sync.start(code, auth == null ? "system" : auth.getName());
+        return new ActionResult(!"FAILED".equals(r.status()), r.message());
     }
 
     @GetMapping("/{code}/sync-log")

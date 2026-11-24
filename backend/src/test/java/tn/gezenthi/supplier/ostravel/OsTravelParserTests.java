@@ -66,6 +66,16 @@ class OsTravelParserTests {
     }
 
     @Test
+    void rateLimitErrorCarriesRetryAfter() {
+        JsonNode root = json.readTree("""
+                { "ListHotel": null, "ErrorMessage": { "Code": 429,
+                  "Description": "Too many requests: ListHotel is limited to 5 calls per minute for your account. Retry after 2026-11-25 00:51:00." } }""");
+        assertThatThrownBy(() -> OsTravelParser.checkError("TunisiaBeds", root))
+                .isInstanceOfSatisfying(tn.gezenthi.supplier.SupplierRateLimitException.class, e ->
+                        assertThat(e.retryAfter()).isEqualTo(java.time.Instant.parse("2026-11-24T23:51:00Z"))); // Tunis = UTC+1
+    }
+
+    @Test
     void errorEnvelopeBecomesSupplierException() {
         JsonNode root = json.readTree("""
                 { "ListCategorie": null, "CountResults": 0,

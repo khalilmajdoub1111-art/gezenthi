@@ -1,8 +1,14 @@
 package tn.gezenthi.supplier.ostravel;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import tn.gezenthi.supplier.SupplierRateLimitException;
 import tn.gezenthi.supplier.HotelSupplier.BoardRate;
 import tn.gezenthi.supplier.HotelSupplier.Offer;
 import tn.gezenthi.supplier.HotelSupplier.RoomRate;
@@ -20,11 +26,30 @@ final class OsTravelParser {
     private OsTravelParser() {
     }
 
-    /** Throws if the standard error envelope reports a failure. */
+    private static final Pattern RETRY_AFTER = Pattern.compile("Retry after (\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})");
+    private static final ZoneId SUPPLIER_ZONE = ZoneId.of("Africa/Tunis");
+
+    /** Throws if the standard error envelope reports a failure (rate limits get a dedicated exception). */
     static void checkError(String supplierName, JsonNode root) {
         JsonNode err = root.path("ErrorMessage");
         if (err.isObject() && !text(err, "Description").isBlank()) {
-            throw new SupplierException(supplierName + " : " + text(err, "Description") + " (code " + text(err, "Code") + ")");
+            String description = text(err, "Description");
+            String message = supplierName + " : " + description + " (code " + text(err, "Code") + ")";
+            if ("429".equals(text(err, "Code"))) {
+                throw new SupplierRateLimitException(message, retryAfter(description));
+            }
+            throw new SupplierException(message);
+        }
+    }
+
+    /** "… Retry after 2026-11-25 00:51:00." → instant (supplier time is Africa/Tunis). */
+    static Instant retryAfter(String description) {
+        Matcher m = RETRY_AFTER.matcher(description);
+        if (!m.find()) return null;
+        try {
+            return LocalDateTime.parse(m.group(1).replace(' ', 'T')).atZone(SUPPLIER_ZONE).toInstant();
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 

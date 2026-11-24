@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiError } from '../core/services/api-error';
@@ -60,9 +60,10 @@ interface SupplierStatus {
                       class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-brand-900 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:opacity-50">
                 <app-icon name="shield" [size]="16" /> {{ busy() === s.code + 'test' ? 'Test…' : 'Tester la connexion' }}
               </button>
-              <button type="button" (click)="run(s.code, 'sync')" [disabled]="busy() !== null"
+              <button type="button" (click)="run(s.code, 'sync')" [disabled]="busy() !== null || isRunning(s)"
                       class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50">
-                <app-icon name="refresh" [size]="16" /> {{ busy() === s.code + 'sync' ? 'Synchronisation…' : 'Synchroniser les hôtels' }}
+                <app-icon name="refresh" [size]="16" [class.animate-spin]="isRunning(s)" />
+                {{ isRunning(s) ? 'Synchronisation en cours…' : 'Synchroniser les hôtels' }}
               </button>
             </div>
           </div>
@@ -72,9 +73,20 @@ interface SupplierStatus {
                [class]="m.ok ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-rose-50 text-rose-700 ring-rose-200'">{{ m.message }}</p>
           }
           @if (s.lastSync; as l) {
-            <p class="mt-4 text-xs text-slate-500">
-              Dernière synchronisation : {{ l.started_at | date: 'dd/MM/yyyy HH:mm' }} — {{ l.status }} — {{ l.message }} (par {{ l.triggered_by }})
-            </p>
+            @if (isRunning(s)) {
+              <div class="mt-4 rounded-2xl bg-brand-50 px-4 py-3 text-sm text-brand-800 ring-1 ring-brand-100" role="status">
+                <p class="flex items-center gap-2 font-semibold">
+                  <span class="size-2 animate-pulse rounded-full bg-brand-600"></span> Synchronisation en cours — {{ l.message }}
+                </p>
+                <p class="mt-1 text-xs text-brand-700">
+                  Le fournisseur limite les appels (environ 4 villes par minute) : vous pouvez quitter cette page, la synchronisation continue sur le serveur.
+                </p>
+              </div>
+            } @else {
+              <p class="mt-4 text-xs text-slate-500">
+                Dernière synchronisation : {{ l.started_at | date: 'dd/MM/yyyy HH:mm' }} — {{ l.status }} — {{ l.message }} (par {{ l.triggered_by }})
+              </p>
+            }
           }
         </section>
       } @empty {
@@ -90,13 +102,25 @@ export class AdminSuppliers {
   protected readonly busy = signal<string | null>(null);
   protected readonly messages = signal<Record<string, { ok: boolean; message: string }>>({});
 
+  private pollTimer?: ReturnType<typeof setTimeout>;
+
   constructor() {
     void this.load();
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.pollTimer));
+  }
+
+  protected isRunning(s: SupplierStatus): boolean {
+    return s.lastSync?.status === 'RUNNING';
   }
 
   private async load(): Promise<void> {
     try {
-      this.suppliers.set(await firstValueFrom(this.http.get<SupplierStatus[]>('/api/admin/suppliers')));
+      const list = await firstValueFrom(this.http.get<SupplierStatus[]>('/api/admin/suppliers'));
+      this.suppliers.set(list);
+      this.loadError.set(null);
+      // A sync runs in the background on the server: refresh its progress every 3 s until it ends.
+      clearTimeout(this.pollTimer);
+      if (list.some((s) => this.isRunning(s))) this.pollTimer = setTimeout(() => void this.load(), 3000);
     } catch (err) {
       this.loadError.set(ApiError.from(err).message);
     }
