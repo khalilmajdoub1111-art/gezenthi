@@ -4,7 +4,7 @@
     {
       "name": "genzenthi-web",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
-      "runtimeArgs": ["start"],
+      "runtimeArgs": ["--prefix", "frontend", "start"],
       "port": 4200
     }
   ]
