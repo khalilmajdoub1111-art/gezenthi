@@ -68,11 +68,27 @@ production (after test reservations, which must be done together with them — s
 - The request body (which contains the password) is **never logged**; only method, duration and error text.
 - Supplier errors shown to the admin never include credentials.
 
-## Next steps (booking workflow)
+## Hotel pages
 
-1. Booking request form (customer + passengers) stored in our DB, with the `offerId`.
-2. Admin screen: requests list → **pre-book** (`BookingCreation` with `PreBooking=true`, checks price) →
-   **confirm** (real booking) — only when `booking-enabled=true` and after payment rules are decided.
-3. Store supplier booking id, voucher URL, state (OnRequest / Validated / Cancelled), cancellation via
-   `BookingCancellation` with `PreCancelled=true` first to show fees.
-4. Currency: if the supplier returns EUR, agree on TND pricing or add a conversion rate.
+`GET /api/public/hotels/{ref}` — `HotelDetail` is called the first time a hotel page opens and cached
+7 days in `supplier_hotel_detail`. Supplier HTML is sanitised (jsoup, text formatting only).
+Partner hotels also appear on the home page ("Plus de 500 hôtels partenaires", prices on request).
+
+## Booking workflow (built)
+
+1. **Customer** (site): search → hotel/room → `/reservation` form → `POST /api/public/bookings`.
+   Only `offerId` + room choice are sent; hotel, dates and **price come from the server** (`OfferRefCache`).
+   Consent is mandatory; reference `GZ-YYYY-NNNNNN`.
+2. **Admin** → *Réservations*: list, detail (customer, passengers), status (Nouvelle → En cours →
+   Confirmée / Annulée / Refusée), internal notes, **full history** in `booking_event` (who, when, what).
+3. **Vérifier prix et disponibilité** (partner hotels): fresh `HotelSearch` + `BookingCreation` with
+   `PreBooking=true` → supplier confirms price, **nothing is booked**.
+4. **Réserver chez le fournisseur**: real `BookingCreation`. **Refused** while `booking-enabled=false`
+   (checked in `BookingService` *and* in the adapter); refusals are recorded in the history.
+
+### Before enabling real bookings (with TunisiaBeds)
+- Test reservations in their dev environment (needs rates on hotel 171), then production switch.
+- Check the real `BookingCreation` response fields (logged as "shape") — price/state/voucher parsing.
+- `BookingCancellation` (with `PreCancelled=true` first) is not implemented yet.
+- Currency: if the supplier returns EUR, agree on TND pricing or add a conversion rate.
+- Customer notification e-mails (needs an SMTP account) and online payment are not implemented.

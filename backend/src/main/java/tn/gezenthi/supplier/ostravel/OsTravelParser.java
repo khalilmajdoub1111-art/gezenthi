@@ -10,6 +10,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tn.gezenthi.supplier.SupplierRateLimitException;
 import tn.gezenthi.supplier.HotelSupplier.BoardRate;
+import tn.gezenthi.supplier.HotelSupplier.BookingCheck;
+import tn.gezenthi.supplier.HotelSupplier.BookingConfirmation;
 import tn.gezenthi.supplier.HotelSupplier.HotelDetails;
 import tn.gezenthi.supplier.HotelSupplier.Offer;
 import tn.gezenthi.supplier.HotelSupplier.RoomRate;
@@ -137,6 +139,37 @@ final class OsTravelParser {
                 blankToNull(text(d, "CheckOut")),
                 blankToNull(text(d, "Type")),
                 images, facilities, titles(d, "Tag"), themes, boards);
+    }
+
+    /**
+     * BookingCreation (PreBooking=true) → verification result. Field names for the total price are
+     * not fully specified by the docs, so the usual candidates are tried (shape is logged by the client).
+     */
+    static BookingCheck bookingCheck(JsonNode root) {
+        JsonNode b = root.path("BookingCreation");
+        if (!b.isObject()) return new BookingCheck(false, null, null, false, "Aucune réponse de pré-réservation.");
+        return new BookingCheck(true, totalPrice(b), blankToNull(text(b, "Currency")),
+                b.path("OnRequest").asBoolean(false) || "OnRequest".equalsIgnoreCase(text(b, "State")),
+                blankToNull(text(b, "Comment")));
+    }
+
+    static BookingConfirmation bookingConfirmation(JsonNode root) {
+        JsonNode b = root.path("BookingCreation");
+        if (!b.isObject() || text(b, "Id").isBlank()) {
+            throw new SupplierException("Réservation non confirmée par le fournisseur (aucun numéro de réservation).");
+        }
+        JsonNode voucher = b.path("Voucher");
+        if (voucher.isArray() && voucher.size() > 0) voucher = voucher.get(0);
+        return new BookingConfirmation(text(b, "Id"), blankToNull(text(b, "State")),
+                blankToNull(text(voucher, "Url")), totalPrice(b));
+    }
+
+    private static BigDecimal totalPrice(JsonNode b) {
+        for (String f : List.of("TotalPrice", "Price", "Total", "Amount", "TotalAmount")) {
+            BigDecimal v = decimal(b, f);
+            if (v != null) return v;
+        }
+        return null;
     }
 
     private static List<String> titles(JsonNode node, String field) {

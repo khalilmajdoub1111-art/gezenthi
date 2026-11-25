@@ -18,6 +18,10 @@ import { ADMIN_ENTITIES } from './admin-entities';
            class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition hover:bg-white/5 hover:text-white">
           <app-icon name="grid" [size]="18" /> Tableau de bord
         </a>
+        <a routerLink="/admin/reservations" routerLinkActive="!bg-white/10 !text-white"
+           class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition hover:bg-white/5 hover:text-white">
+          <app-icon name="calendar" [size]="18" /> Réservations
+        </a>
         <p class="px-3 pb-1 pt-5 text-[11px] font-bold uppercase tracking-wider text-brand-400">Offres</p>
         @for (e of entities; track e.key) {
           <a [routerLink]="['/admin', e.key]" routerLinkActive="!bg-white/10 !text-white"
@@ -53,6 +57,8 @@ import { ADMIN_ENTITIES } from './admin-entities';
       <nav class="no-scrollbar flex gap-1 overflow-x-auto px-3 pb-3" aria-label="Administration">
         <a routerLink="/admin" routerLinkActive="!bg-gold-400 !text-brand-950" [routerLinkActiveOptions]="{ exact: true }"
            class="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium">Tableau de bord</a>
+        <a routerLink="/admin/reservations" routerLinkActive="!bg-gold-400 !text-brand-950"
+           class="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium">Réservations</a>
         @for (e of entities; track e.key) {
           <a [routerLink]="['/admin', e.key]" routerLinkActive="!bg-gold-400 !text-brand-950"
              class="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium">{{ e.label }}</a>

@@ -32,6 +32,14 @@ class FakeSupplierConfig {
                         List.of("Piscine", "Wi-Fi"), List.of("Beachfront"), List.of("Family"), List.of("All Inclusive"));
             }
 
+            public BookingCheck preBook(BookingSpec spec) {
+                return new BookingCheck(true, new BigDecimal("1000.000"), "TND", false, null);
+            }
+
+            public BookingConfirmation book(BookingSpec spec) {
+                throw new AssertionError("Real booking must never be called while booking is disabled");
+            }
+
             public List<Offer> search(SearchQuery q, List<String> ids) {
                 RoomRate room = new RoomRate("201", "Double Standard", new BigDecimal("1000.000"), true, true, "01/07/2027", 3);
                 return List.of(new Offer("171", "", "", null, null, null, "TND",

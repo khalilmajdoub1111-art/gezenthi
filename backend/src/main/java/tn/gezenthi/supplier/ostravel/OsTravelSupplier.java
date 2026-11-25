@@ -139,6 +139,58 @@ public class OsTravelSupplier implements HotelSupplier {
         return OsTravelParser.hotelDetails(call("HotelDetail", req));
     }
 
+    @Override
+    public BookingCheck preBook(BookingSpec spec) {
+        ObjectNode req = bookingRequest(spec);
+        ((ObjectNode) req.get("HotelBooking")).put("PreBooking", true); // VERIFY ONLY — nothing is saved by the supplier
+        return OsTravelParser.bookingCheck(call("BookingCreation", req));
+    }
+
+    @Override
+    public BookingConfirmation book(BookingSpec spec) {
+        // Second safety lock (the booking service checks too): no real booking unless explicitly enabled.
+        if (!config.isBookingEnabled()) {
+            throw new SupplierException(displayName() + " : réservation réelle désactivée (booking-enabled=false).");
+        }
+        ObjectNode req = bookingRequest(spec);
+        ((ObjectNode) req.get("HotelBooking")).put("PreBooking", false);
+        return OsTravelParser.bookingConfirmation(call("BookingCreation", req));
+    }
+
+    private ObjectNode bookingRequest(BookingSpec s) {
+        ObjectNode req = body();
+        ObjectNode b = req.putObject("HotelBooking");
+        b.put("City", Integer.parseInt(s.cityId()));
+        b.put("Hotel", Integer.parseInt(s.hotelId()));
+        b.put("CheckIn", DATE.format(s.checkIn()));
+        b.put("CheckOut", DATE.format(s.checkOut()));
+        b.put("Source", s.source());
+        ObjectNode room = b.putArray("Rooms").addObject();
+        room.put("Id", s.roomId());
+        room.put("Boarding", Integer.parseInt(s.boardId()));
+        room.putArray("View");
+        room.putArray("Supplement");
+        ObjectNode pax = room.putObject("Pax");
+        ArrayNode adults = pax.putArray("Adult");
+        for (Passenger p : s.adults()) {
+            ObjectNode a = adults.addObject();
+            a.put("Civility", p.civility());
+            a.put("Name", p.firstName());
+            a.put("Surname", p.lastName());
+            a.put("Holder", p.holder());
+        }
+        ArrayNode children = pax.putArray("Child");
+        for (Passenger p : s.children()) {
+            ObjectNode c = children.addObject();
+            c.put("Name", p.firstName());
+            c.put("Surname", p.lastName());
+            c.put("Age", p.childAge());
+        }
+        b.put("Comment", s.comment() == null ? "" : s.comment());
+        b.put("Token", s.token());
+        return req;
+    }
+
     // ------------------------------------------------------------------ HTTP
 
     /** Request body pre-filled with the Credential object. Never logged. */

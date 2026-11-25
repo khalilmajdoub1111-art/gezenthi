@@ -45,6 +45,33 @@ public interface HotelSupplier {
     /** Rich static content for one hotel (photos, description, location…). Read-only. */
     HotelDetails hotelDetail(String externalHotelId);
 
+    /**
+     * Pre-booking: asks the supplier to VERIFY price and availability WITHOUT creating a booking
+     * (OS-TRAVEL: BookingCreation with PreBooking=true). Safe to call.
+     */
+    BookingCheck preBook(BookingSpec spec);
+
+    /**
+     * REAL booking at the supplier (creates a reservation, may be invoiced).
+     * Implementations MUST refuse unless the supplier's booking-enabled switch is on.
+     */
+    BookingConfirmation book(BookingSpec spec);
+
+    record Passenger(String civility, String firstName, String lastName, boolean holder, Integer childAge) {
+    }
+
+    record BookingSpec(String cityId, String hotelId, LocalDate checkIn, LocalDate checkOut, String source,
+                       String token, String roomId, String boardId, List<Passenger> adults,
+                       List<Passenger> children, String comment) {
+    }
+
+    /** price = supplier (net) total confirmed by the supplier; message = supplier-side remarks. */
+    record BookingCheck(boolean available, BigDecimal price, String currency, boolean onRequest, String message) {
+    }
+
+    record BookingConfirmation(String bookingId, String state, String voucherUrl, BigDecimal price) {
+    }
+
     /** Description/notes are RAW supplier HTML: always sanitise before display. */
     record HotelDetails(String description, String notes, String address, String latitude, String longitude,
                         String checkIn, String checkOut, String type, List<String> images,

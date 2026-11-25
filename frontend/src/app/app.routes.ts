@@ -10,6 +10,7 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('./pages/home/home').then((m) => m.Home), title: 'Gezenthi Travel Agency' },
       { path: 'recherche', loadComponent: () => import('./pages/search/search-results').then((m) => m.SearchResults), title: 'Recherche d’hôtels — Gezenthi' },
       { path: 'hotel/:ref', loadComponent: () => import('./pages/hotel/hotel-page').then((m) => m.HotelPage), title: 'Hôtel — Gezenthi' },
+      { path: 'reservation', loadComponent: () => import('./pages/booking/booking-page').then((m) => m.BookingPage), title: 'Réservation — Gezenthi' },
     ],
   },
   {
@@ -24,6 +25,8 @@ export const routes: Routes = [
     children: [
       { path: '', loadComponent: () => import('./admin/admin-dashboard').then((m) => m.AdminDashboard), title: 'Tableau de bord — Admin Gezenthi' },
       { path: 'fournisseurs', loadComponent: () => import('./admin/admin-suppliers').then((m) => m.AdminSuppliers), title: 'Fournisseurs — Admin Gezenthi' },
+      { path: 'reservations', loadComponent: () => import('./admin/admin-bookings').then((m) => m.AdminBookings), title: 'Réservations — Admin Gezenthi' },
+      { path: 'reservations/:id', loadComponent: () => import('./admin/admin-booking-detail').then((m) => m.AdminBookingDetail), title: 'Réservation — Admin Gezenthi' },
       { path: ':entity', loadComponent: () => import('./admin/entity-list').then((m) => m.EntityList), title: 'Offres — Admin Gezenthi' },
       { path: ':entity/new', loadComponent: () => import('./admin/entity-form').then((m) => m.EntityForm), title: 'Nouvelle offre — Admin Gezenthi' },
       { path: ':entity/:id', loadComponent: () => import('./admin/entity-form').then((m) => m.EntityForm), title: 'Modifier — Admin Gezenthi' },
