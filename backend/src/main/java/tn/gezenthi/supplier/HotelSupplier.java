@@ -42,6 +42,15 @@ public interface HotelSupplier {
     /** Live availability and prices for the given supplier hotel ids (≤ 200 per call). */
     List<Offer> search(SearchQuery query, List<String> hotelIds);
 
+    /** Rich static content for one hotel (photos, description, location…). Read-only. */
+    HotelDetails hotelDetail(String externalHotelId);
+
+    /** Description/notes are RAW supplier HTML: always sanitise before display. */
+    record HotelDetails(String description, String notes, String address, String latitude, String longitude,
+                        String checkIn, String checkOut, String type, List<String> images,
+                        List<String> facilities, List<String> tags, List<String> themes, List<String> boards) {
+    }
+
     // ---------------------------------------------------------------- normalised model
 
     record StaticHotel(String externalId, String name, String cityExternalId, String cityName,

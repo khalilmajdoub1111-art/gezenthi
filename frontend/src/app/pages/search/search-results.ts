@@ -51,7 +51,9 @@ import { HeroSearch } from '../home/hero-search/hero-search';
             <article class="grid overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-100 md:grid-cols-[280px_1fr]">
               <div class="relative aspect-[4/3] bg-slate-100 md:aspect-auto">
                 @if (h.image) {
-                  <img [src]="h.image" [alt]="h.name" loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
+                  <a [routerLink]="h.ref ? ['/hotel', h.ref] : null" [queryParams]="hotelQuery()" class="absolute inset-0">
+                    <img [src]="h.image" [alt]="h.name" loading="lazy" class="h-full w-full object-cover" />
+                  </a>
                 } @else {
                   <div class="absolute inset-0 grid place-items-center text-slate-300"><app-icon name="hotel" [size]="48" /></div>
                 }
@@ -65,7 +67,11 @@ import { HeroSearch } from '../home/hero-search/hero-search';
                     @if (h.stars) {
                       <p class="text-gold-400">{{ '★'.repeat(h.stars) }}</p>
                     }
-                    <h2 class="font-display text-xl font-semibold text-brand-950">{{ h.name }}</h2>
+                    @if (h.ref) {
+                      <a [routerLink]="['/hotel', h.ref]" [queryParams]="hotelQuery()" class="font-display text-xl font-semibold text-brand-950 hover:text-brand-600 hover:underline">{{ h.name }}</a>
+                    } @else {
+                      <h2 class="font-display text-xl font-semibold text-brand-950">{{ h.name }}</h2>
+                    }
                     <p class="flex items-center gap-1 text-sm text-slate-500"><app-icon name="pin" [size]="14" /> {{ h.city }}</p>
                   </div>
                   <div class="text-right">
@@ -80,19 +86,24 @@ import { HeroSearch } from '../home/hero-search/hero-search';
 
                 @if (open() === h.offerId) {
                   <div class="mt-4 space-y-4">
-                    @for (b of h.boards; track $index) {
+                    @for (b of h.boards; track $index; let bi = $index) {
                       <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-gold-600">{{ b.name }}</p>
                         <ul class="mt-2 divide-y divide-slate-100 rounded-2xl ring-1 ring-slate-100">
-                          @for (room of b.rooms; track $index) {
+                          @for (room of b.rooms; track $index; let ri = $index) {
                             <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                               <span class="font-medium text-brand-950">{{ room.name }}</span>
                               <span class="flex items-center gap-3">
                                 <span class="text-xs" [class]="room.refundable ? 'text-emerald-600' : 'text-rose-600'">
                                   {{ room.refundable ? 'Annulable' + (room.cancellationDeadline ? ' jusqu’au ' + room.cancellationDeadline : '') : 'Non remboursable' }}
                                 </span>
-                                @if (!room.available) { <span class="text-xs text-slate-400">Complet</span> }
                                 <strong class="text-brand-700">{{ room.totalPrice | number: '1.0-0' }} {{ h.currency === 'TND' ? 'DT' : h.currency }}</strong>
+                                @if (room.available) {
+                                  <a [routerLink]="['/reservation']" [queryParams]="{ offer: h.offerId, board: bi, room: ri }"
+                                     class="rounded-full bg-gold-400 px-3 py-1 text-xs font-bold text-brand-950 hover:bg-gold-300">Réserver</a>
+                                } @else {
+                                  <span class="text-xs text-slate-400">Sur demande</span>
+                                }
                               </span>
                             </li>
                           }
@@ -175,6 +186,11 @@ export class SearchResults {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Carries the search dates/travellers to the hotel page. */
+  protected hotelQuery(): Record<string, string | number | null> {
+    return { checkIn: this.checkIn(), checkOut: this.checkOut(), adults: this.adults(), children: this.childAges().join(',') || null };
   }
 
   protected toggle(id: string): void {

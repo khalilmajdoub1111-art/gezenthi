@@ -7,35 +7,48 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
+import tn.gezenthi.supplier.HotelSupplier;
 import tn.gezenthi.supplier.HotelSupplier.SearchQuery;
 
 /**
- * Keeps supplier booking references (Token, Source…) on the SERVER, keyed by an opaque offerId.
- * The browser only ever sees the offerId — it can't tamper with supplier tokens or see which
- * supplier/price chain is behind an offer. Entries expire with the supplier token.
+ * Server-side memory of every offer shown to a visitor, keyed by an opaque offerId.
+ *
+ * - Supplier booking references (Token, Source, supplier name, net prices) never leave the server.
+ * - A booking request only sends offerId + chosen room: hotel, dates and PRICE are taken from here,
+ *   so a visitor can't tamper with the price in the browser.
+ * Entries expire with the supplier token (30 min); the visitor then simply searches again.
  */
 @Component
 public class OfferRefCache {
 
     static final Duration TTL = Duration.ofMinutes(30);
 
-    public record SupplierOfferRef(String supplierCode, String externalHotelId, String token, String source,
-                                   SearchQuery query, Instant expiresAt) {
+    /** supplierCode/token/source/supplierOffer are null for the agency's own offers. */
+    public record OfferRef(String hotelRef, String supplierCode, String externalHotelId, String cityExternalId,
+                           String token, String source, HotelSupplier.Offer supplierOffer, SearchQuery query,
+                           HotelSearchService.HotelResult result, Instant expiresAt) {
     }
 
-    private final Map<String, SupplierOfferRef> refs = new ConcurrentHashMap<>();
+    private final Map<String, OfferRef> refs = new ConcurrentHashMap<>();
 
-    public String put(String supplierCode, String externalHotelId, String token, String source, SearchQuery query) {
+    public String newId() {
+        return UUID.randomUUID().toString();
+    }
+
+    public void put(String offerId, OfferRef ref) {
         evictExpired();
-        String offerId = UUID.randomUUID().toString();
-        refs.put(offerId, new SupplierOfferRef(supplierCode, externalHotelId, token, source, query, Instant.now().plus(TTL)));
-        return offerId;
+        refs.put(offerId, ref);
     }
 
-    public Optional<SupplierOfferRef> get(String offerId) {
-        SupplierOfferRef ref = refs.get(offerId);
+    public Optional<OfferRef> get(String offerId) {
+        if (offerId == null) return Optional.empty();
+        OfferRef ref = refs.get(offerId);
         if (ref == null || ref.expiresAt().isBefore(Instant.now())) return Optional.empty();
         return Optional.of(ref);
+    }
+
+    static Instant expiry() {
+        return Instant.now().plus(TTL);
     }
 
     private void evictExpired() {

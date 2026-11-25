@@ -9,6 +9,7 @@ export const routes: Routes = [
     children: [
       { path: '', loadComponent: () => import('./pages/home/home').then((m) => m.Home), title: 'Gezenthi Travel Agency' },
       { path: 'recherche', loadComponent: () => import('./pages/search/search-results').then((m) => m.SearchResults), title: 'Recherche d’hôtels — Gezenthi' },
+      { path: 'hotel/:ref', loadComponent: () => import('./pages/hotel/hotel-page').then((m) => m.HotelPage), title: 'Hôtel — Gezenthi' },
     ],
   },
   {

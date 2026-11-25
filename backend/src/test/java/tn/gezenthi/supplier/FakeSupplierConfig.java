@@ -25,6 +25,13 @@ class FakeSupplierConfig {
                 listener.onCity("Sousse", 2, 2, List.of(new StaticHotel("172", "Hotel Test 172", "2", "Sousse", 3, null)));
             }
 
+            public HotelDetails hotelDetail(String id) {
+                return new HotelDetails("<p>Belle plage</p><script>alert('xss')</script><a href=\"javascript:x\">lien</a>",
+                        null, "Route touristique", "36.4", "10.6", "14h00", "12h00", "Hôtel",
+                        List.of("https://cdn.example.com/171/main.jpg", "https://cdn.example.com/171/pool.jpg"),
+                        List.of("Piscine", "Wi-Fi"), List.of("Beachfront"), List.of("Family"), List.of("All Inclusive"));
+            }
+
             public List<Offer> search(SearchQuery q, List<String> ids) {
                 RoomRate room = new RoomRate("201", "Double Standard", new BigDecimal("1000.000"), true, true, "01/07/2027", 3);
                 return List.of(new Offer("171", "", "", null, null, null, "TND",

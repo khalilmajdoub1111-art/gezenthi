@@ -132,6 +132,13 @@ public class OsTravelSupplier implements HotelSupplier {
         return all;
     }
 
+    @Override
+    public HotelDetails hotelDetail(String externalHotelId) {
+        ObjectNode req = body();
+        req.put("Hotel", Integer.parseInt(externalHotelId));
+        return OsTravelParser.hotelDetails(call("HotelDetail", req));
+    }
+
     // ------------------------------------------------------------------ HTTP
 
     /** Request body pre-filled with the Credential object. Never logged. */

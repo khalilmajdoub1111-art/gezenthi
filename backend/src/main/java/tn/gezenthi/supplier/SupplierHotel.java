@@ -49,6 +49,7 @@ public class SupplierHotel {
         active = false;
     }
 
+    public UUID getId() { return id; }
     public String getSupplierCode() { return supplierCode; }
     public String getExternalId() { return externalId; }
     public String getName() { return name; }

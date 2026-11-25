@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Hotel } from '../../core/models/travel.models';
 import { Icon } from '../icon/icon';
 
 @Component({
   selector: 'app-hotel-card',
-  imports: [Icon, DecimalPipe],
+  imports: [Icon, DecimalPipe, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -70,7 +71,7 @@ import { Icon } from '../icon/icon';
             <p class="text-xs text-slate-500">par nuit / personne</p>
           </div>
           <a
-            href="#hotels-tunisie"
+            [routerLink]="['/hotel', 'a-' + hotel().id]"
             class="grid size-11 place-items-center rounded-full bg-gold-400 text-brand-950 transition group-hover:bg-brand-600 group-hover:text-white"
             [attr.aria-label]="'Voir ' + hotel().name"
           >

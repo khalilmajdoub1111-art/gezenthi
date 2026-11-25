@@ -36,11 +36,53 @@ class SupplierSearchTests {
     @Autowired MockMvc mvc;
     @Autowired SupplierHotelRepository supplierHotels;
 
+    private SupplierHotel hotel;
+
     @BeforeEach
     void cacheStaticHotel() {
-        SupplierHotel h = new SupplierHotel(FakeSupplierConfig.CODE, "171");
-        h.refresh(new HotelSupplier.StaticHotel("171", "Hotel Test 171", "1", "Hammamet", 4, null), Instant.now());
-        supplierHotels.save(h);
+        hotel = new SupplierHotel(FakeSupplierConfig.CODE, "171");
+        hotel.refresh(new HotelSupplier.StaticHotel("171", "Hotel Test 171", "1", "Hammamet", 4,
+                "https://cdn.example.com/171/main.jpg"), Instant.now());
+        hotel = supplierHotels.save(hotel);
+    }
+
+    @Test
+    void partnerHotelPageShowsDetailsWithSanitisedHtml() throws Exception {
+        mvc.perform(get("/api/public/hotels/p-" + hotel.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Hotel Test 171"))
+                .andExpect(jsonPath("$.origin").value("partenaire"))
+                .andExpect(jsonPath("$.images.length()").value(2))
+                .andExpect(jsonPath("$.facilities", hasItem("Piscine")))
+                .andExpect(jsonPath("$.latitude").value("36.4"))
+                .andExpect(jsonPath("$.description").value(org.hamcrest.Matchers.containsString("Belle plage")))
+                .andExpect(jsonPath("$.description").value(not(org.hamcrest.Matchers.containsString("script"))))
+                .andExpect(jsonPath("$.description").value(not(org.hamcrest.Matchers.containsString("javascript"))))
+                .andExpect(content().string(not(org.hamcrest.Matchers.containsString("Fake Bed Bank"))));
+    }
+
+    @Test
+    void partnerHotelAvailabilityAndFeaturedList() throws Exception {
+        LocalDate in = LocalDate.now().plusDays(40);
+        mvc.perform(get("/api/public/hotels/p-" + hotel.getId() + "/availability")
+                        .param("checkIn", in.toString()).param("checkOut", in.plusDays(3).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fromPrice").value(1100))
+                .andExpect(jsonPath("$.ref").value("p-" + hotel.getId()))
+                .andExpect(jsonPath("$.boards[0].rooms[0].id").value("201"));
+
+        // Real DB may hold many synced hotels: check the rules, not a specific hotel.
+        mvc.perform(get("/api/public/hotels/partners/featured").param("limit", "6"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.lessThanOrEqualTo(6)))
+                .andExpect(jsonPath("$[*].ref", org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.startsWith("p-"))))
+                .andExpect(jsonPath("$[*].image", org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.notNullValue())));
+    }
+
+    @Test
+    void unknownHotelRefIs404() throws Exception {
+        mvc.perform(get("/api/public/hotels/p-not-a-uuid")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/public/hotels/x-123")).andExpect(status().isNotFound());
     }
 
     @Test

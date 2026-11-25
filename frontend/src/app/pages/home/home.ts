@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CatalogService } from '../../core/services/catalog.service';
+import { HotelSearchService, PartnerCard } from '../../core/services/hotel-search.service';
+import { RouterLink } from '@angular/router';
 import { HotelCard } from '../../shared/hotel-card/hotel-card';
 import { Icon } from '../../shared/icon/icon';
 import { RevealDirective } from '../../shared/reveal.directive';
@@ -7,7 +9,7 @@ import { HeroSearch } from './hero-search/hero-search';
 
 @Component({
   selector: 'app-home',
-  imports: [HeroSearch, HotelCard, Icon, RevealDirective],
+  imports: [HeroSearch, HotelCard, Icon, RevealDirective, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   templateUrl: './home.html',
@@ -73,8 +75,12 @@ export class Home {
     { value: '4.9/5', label: 'note moyenne' },
   ];
 
+  /* Partner (supplier) hotels showcase — no prices, "sur demande" */
+  protected readonly partners = signal<PartnerCard[]>([]);
+
   constructor() {
     this.catalog.reload(); // always show the latest offers (e.g. just added in the admin)
+    inject(HotelSearchService).featuredPartners(8).then((p) => this.partners.set(p), () => this.partners.set([]));
     const slideTimer = setInterval(() => this.slide.update((i) => (i + 1) % this.heroImages.length), 6000);
     const clockTimer = setInterval(() => this.now.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => {

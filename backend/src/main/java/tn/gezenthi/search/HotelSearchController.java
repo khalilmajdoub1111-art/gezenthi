@@ -7,21 +7,36 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import tn.gezenthi.catalog.CatalogCrud;
+import tn.gezenthi.catalog.hotel.Hotel;
+import tn.gezenthi.catalog.hotel.HotelDto;
+import tn.gezenthi.supplier.HotelDetailService;
 import tn.gezenthi.supplier.HotelSupplier.Room;
 import tn.gezenthi.supplier.HotelSupplier.SearchQuery;
+import tn.gezenthi.supplier.SupplierHotel;
+import tn.gezenthi.supplier.SupplierHotelDetail;
+import tn.gezenthi.supplier.SupplierHotelRepository;
 
 /**
- * Public hotel search: GET /api/public/hotels/search?city=Hammamet&checkIn=2027-07-01&checkOut=2027-07-08&adults=2&children=8,12
- * Inputs are validated strictly and the endpoint is rate-limited per IP, because each search
- * can trigger paid/limited supplier API calls.
+ * Public hotel endpoints:
+ *  GET /api/public/hotels/search?city&checkIn&checkOut&adults&children   — unified search
+ *  GET /api/public/hotels/{ref}                                           — hotel page content
+ *  GET /api/public/hotels/{ref}/availability?checkIn&checkOut&adults&children
+ *  GET /api/public/hotels/partners/featured?limit=8                       — home page showcase
+ * Inputs are validated strictly and searches are rate-limited per IP, because they can
+ * trigger limited supplier API calls.
  */
 @RestController
 @RequestMapping("/api/public/hotels")
@@ -29,11 +44,30 @@ class HotelSearchController {
 
     private static final int MAX_SEARCHES_PER_MINUTE = 20;
 
+    /** Hotel page content. description/notes are sanitised HTML (text formatting only). */
+    record HotelPage(String ref, String origin, String name, String city, Integer stars, String address,
+                     List<String> images, String description, String notes, List<String> facilities,
+                     List<String> tags, List<String> themes, List<String> boards, String checkIn,
+                     String checkOut, String latitude, String longitude) {
+    }
+
+    record PartnerCard(String ref, String name, String city, Integer stars, String image) {
+    }
+
     private final HotelSearchService search;
+    private final CatalogCrud<Hotel, HotelDto> ownHotels;
+    private final SupplierHotelRepository supplierHotels;
+    private final HotelDetailService details;
+    private final JdbcTemplate jdbc;
     private final Map<String, List<Instant>> hits = new ConcurrentHashMap<>();
 
-    HotelSearchController(HotelSearchService search) {
+    HotelSearchController(HotelSearchService search, CatalogCrud<Hotel, HotelDto> ownHotels,
+                          SupplierHotelRepository supplierHotels, HotelDetailService details, JdbcTemplate jdbc) {
         this.search = search;
+        this.ownHotels = ownHotels;
+        this.supplierHotels = supplierHotels;
+        this.details = details;
+        this.jdbc = jdbc;
     }
 
     @GetMapping("/search")
@@ -44,20 +78,92 @@ class HotelSearchController {
             @RequestParam(defaultValue = "2") int adults,
             @RequestParam(defaultValue = "") String children,
             HttpServletRequest request) {
-
         rateLimit(request.getRemoteAddr());
         if (city.isBlank() || city.length() > 80) throw bad("Ville invalide.");
+        return search.search(query(city.trim(), checkIn, checkOut, adults, children));
+    }
+
+    @GetMapping("/{ref}")
+    HotelPage hotel(@PathVariable String ref) {
+        if (ref.startsWith("a-")) {
+            HotelDto h = ownHotel(ref);
+            return new HotelPage(ref, "agence", h.name(), h.city(), h.stars(), null, List.of(h.image()), null, null,
+                    h.tags(), List.of(), List.of(), List.of(h.board()), null, null, null, null);
+        }
+        SupplierHotel h = partnerHotel(ref);
+        Optional<SupplierHotelDetail> d = details.forHotel(h);
+        List<String> images = d.map(SupplierHotelDetail::getImages).filter(l -> !l.isEmpty())
+                .orElse(h.getImage() == null ? List.of() : List.of(h.getImage()));
+        return new HotelPage(ref, "partenaire", h.getName(), h.getCityName(), h.getStars(),
+                d.map(SupplierHotelDetail::getAddress).orElse(null), images,
+                d.map(SupplierHotelDetail::getDescription).orElse(null), d.map(SupplierHotelDetail::getNotes).orElse(null),
+                d.map(SupplierHotelDetail::getFacilities).orElse(List.of()), d.map(SupplierHotelDetail::getTags).orElse(List.of()),
+                d.map(SupplierHotelDetail::getThemes).orElse(List.of()), d.map(SupplierHotelDetail::getBoards).orElse(List.of()),
+                d.map(SupplierHotelDetail::getCheckIn).orElse(null), d.map(SupplierHotelDetail::getCheckOut).orElse(null),
+                d.map(SupplierHotelDetail::getLatitude).orElse(null), d.map(SupplierHotelDetail::getLongitude).orElse(null));
+    }
+
+    @GetMapping("/{ref}/availability")
+    Optional<HotelSearchService.HotelResult> availability(
+            @PathVariable String ref,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
+            @RequestParam(defaultValue = "2") int adults,
+            @RequestParam(defaultValue = "") String children,
+            HttpServletRequest request) {
+        rateLimit(request.getRemoteAddr());
+        if (ref.startsWith("a-")) {
+            HotelDto h = ownHotel(ref);
+            return search.availabilityOwn(h, query(h.city(), checkIn, checkOut, adults, children));
+        }
+        SupplierHotel h = partnerHotel(ref);
+        return search.availabilityPartner(h, query(h.getCityName(), checkIn, checkOut, adults, children));
+    }
+
+    /** A few partner hotels with photos, spread over several cities (no prices: "sur demande"). */
+    @GetMapping("/partners/featured")
+    List<PartnerCard> featuredPartners(@RequestParam(defaultValue = "8") int limit) {
+        int n = Math.max(1, Math.min(limit, 24));
+        return jdbc.query("""
+                select id, name, city_name, stars, image from (
+                  select h.*, row_number() over (partition by lower(city_name) order by stars desc nulls last, name) rn
+                  from supplier_hotel h where active and image is not null
+                ) t where rn <= 2 order by stars desc nulls last, rn, city_name limit ?""",
+                (rs, i) -> new PartnerCard("p-" + rs.getObject("id", UUID.class), rs.getString("name"),
+                        rs.getString("city_name"), (Integer) rs.getObject("stars"), rs.getString("image")), n);
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private HotelDto ownHotel(String ref) {
+        try {
+            HotelDto h = ownHotels.get(UUID.fromString(ref.substring(2)));
+            if (!h.published()) throw notFound();
+            return h;
+        } catch (IllegalArgumentException e) {
+            throw notFound();
+        }
+    }
+
+    private SupplierHotel partnerHotel(String ref) {
+        if (!ref.startsWith("p-")) throw notFound();
+        try {
+            return supplierHotels.findById(UUID.fromString(ref.substring(2))).filter(SupplierHotel::isActive).orElseThrow(this::notFound);
+        } catch (IllegalArgumentException e) {
+            throw notFound();
+        }
+    }
+
+    private static SearchQuery query(String city, LocalDate checkIn, LocalDate checkOut, int adults, String children) {
         if (checkIn.isBefore(LocalDate.now())) throw bad("La date d’arrivée est dans le passé.");
         if (!checkOut.isAfter(checkIn)) throw bad("La date de départ doit être après la date d’arrivée.");
         if (checkIn.until(checkOut).getDays() > 30 || checkIn.isAfter(LocalDate.now().plusYears(2))) throw bad("Séjour trop long ou trop lointain.");
         if (adults < 1 || adults > 6) throw bad("Entre 1 et 6 adultes.");
-        List<Integer> ages = parseAges(children);
-
-        return search.search(new SearchQuery(checkIn, checkOut, city.trim(), List.of(new Room(adults, ages))));
+        return new SearchQuery(checkIn, checkOut, city, List.of(new Room(adults, parseAges(children))));
     }
 
-    private static List<Integer> parseAges(String children) {
-        if (children.isBlank()) return List.of();
+    static List<Integer> parseAges(String children) {
+        if (children == null || children.isBlank()) return List.of();
         try {
             List<Integer> ages = Arrays.stream(children.split(",")).map(String::trim).map(Integer::valueOf).toList();
             if (ages.size() > 4 || ages.stream().anyMatch(a -> a < 0 || a > 17)) throw bad("Jusqu’à 4 enfants de 0 à 17 ans.");
@@ -78,6 +184,10 @@ class HotelSearchController {
         if (recent.size() > MAX_SEARCHES_PER_MINUTE) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Trop de recherches, réessayez dans une minute.");
         }
+    }
+
+    private ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Hôtel introuvable.");
     }
 
     private static ResponseStatusException bad(String message) {

@@ -10,6 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tn.gezenthi.supplier.SupplierRateLimitException;
 import tn.gezenthi.supplier.HotelSupplier.BoardRate;
+import tn.gezenthi.supplier.HotelSupplier.HotelDetails;
 import tn.gezenthi.supplier.HotelSupplier.Offer;
 import tn.gezenthi.supplier.HotelSupplier.RoomRate;
 import tn.gezenthi.supplier.HotelSupplier.StaticHotel;
@@ -108,6 +109,43 @@ final class OsTravelParser {
                     text(r, "Source")));
         }
         return offers;
+    }
+
+    /** HotelDetail response → normalised details (HTML left raw: sanitised by the caller). */
+    static HotelDetails hotelDetails(JsonNode root) {
+        JsonNode d = root.has("HotelDetail") ? root.path("HotelDetail") : root;
+        List<String> images = new ArrayList<>();
+        if (!text(d, "Image").isBlank()) images.add(text(d, "Image"));
+        for (JsonNode a : list(d, "Album")) {
+            String url = a.isObject() ? text(a, "Url") : a.asString();
+            if (!url.isBlank() && !images.contains(url)) images.add(url);
+        }
+        List<String> facilities = titles(d, "Facilities");
+        for (String o : titles(d, "Option")) if (!facilities.contains(o)) facilities.add(o);
+        List<String> themes = new ArrayList<>();
+        for (JsonNode t : list(d, "Theme")) if (!t.asString().isBlank()) themes.add(t.asString().trim());
+        List<String> boards = new ArrayList<>();
+        for (JsonNode b : list(d, "Boarding")) if (!text(b, "Name").isBlank()) boards.add(text(b, "Name"));
+        JsonNode loc = d.path("Localization");
+        return new HotelDetails(
+                blankToNull(text(d, "LongDescription").isBlank() ? text(d, "ShortDescription") : text(d, "LongDescription")),
+                blankToNull(text(d, "Note")),
+                blankToNull(text(d, "Adress").isBlank() ? text(d, "Address") : text(d, "Adress")),
+                blankToNull(text(loc, "Latitude")),
+                blankToNull(text(loc, "Longitude")),
+                blankToNull(text(d, "CheckIn")),
+                blankToNull(text(d, "CheckOut")),
+                blankToNull(text(d, "Type")),
+                images, facilities, titles(d, "Tag"), themes, boards);
+    }
+
+    private static List<String> titles(JsonNode node, String field) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode n : list(node, field)) {
+            String t = n.isObject() ? text(n, "Title") : n.asString().trim();
+            if (!t.isBlank() && !out.contains(t)) out.add(t);
+        }
+        return out;
     }
 
     private static boolean isRefundable(JsonNode policies) {
