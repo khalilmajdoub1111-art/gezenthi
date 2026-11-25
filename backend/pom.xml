@@ -50,6 +50,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
+		<!-- Booking e-mails (SMTP). The mail sender is built only when e-mail is enabled in config. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
 		<!-- Sanitises HTML coming from suppliers (hotel descriptions) before it reaches the browser -->
 		<dependency>
 			<groupId>org.jsoup</groupId>

@@ -37,6 +37,32 @@ export interface CreateBooking {
   passengers: PassengerIn[];
   comment: string;
   consent: boolean;
+  whatsappOptIn: boolean;
+}
+
+export interface NotificationLogEntry {
+  channel: 'EMAIL' | 'WHATSAPP';
+  audience: 'CUSTOMER' | 'AGENCY';
+  template: string;
+  recipient: string; // masked
+  status: 'SENT' | 'FAILED' | 'SKIPPED';
+  error: string | null;
+  at: string;
+}
+
+/** wa.me link: opens WhatsApp with a pre-filled message (sent manually by the user). */
+export function whatsappLink(phoneDigits: string, text: string): string {
+  return `https://wa.me/${phoneDigits}?text=${encodeURIComponent(text)}`;
+}
+
+/** "+216 20 123 456" → "21620123456" (null if implausible). Same rule as the backend. */
+export function toWhatsAppDigits(phone: string, defaultCountry = '216'): string | null {
+  let d = phone.replace(/[^0-9+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1);
+  else if (d.startsWith('00')) d = d.slice(2);
+  else if (d.length <= 8) d = defaultCountry + d;
+  d = d.replace(/\D/g, '');
+  return d.length >= 10 && d.length <= 15 ? d : null;
 }
 
 export type BookingStatus = 'NEW' | 'IN_PROGRESS' | 'PRICE_CHECKED' | 'CONFIRMED' | 'CANCELLED' | 'REJECTED';
@@ -80,6 +106,9 @@ export interface BookingDetail extends Omit<BookingSummary, 'customerName'> {
   supplierBookingEnabled: boolean;
   passengers: { position: number; type: string; civility: string | null; firstName: string; lastName: string; age: number | null }[];
   events: { at: string; actor: string; action: string; details: string | null }[];
+  whatsappOptIn: boolean;
+  notifications: NotificationLogEntry[];
+  channels: { emailReady: boolean; whatsappReady: boolean; agencyEmailSet: boolean };
 }
 
 export interface SupplierCheckResult {

@@ -66,6 +66,8 @@ export const MAIN_NAV: NavItem[] = [
 export const AGENCY_CONTACT = {
   phone: '+216 56 762 281',
   phoneHref: 'tel:+21656762281',
+  /** WhatsApp number in international format, digits only (wa.me links). */
+  whatsapp: '21656762281',
   email: 'contact@gezenthi.tn',
   address: 'Avenue Mohamed Kedidi, Nabeul, Tunisie',
   mapUrl: 'https://www.google.com/maps/search/?api=1&query=Avenue+Mohamed+Kedidi+Nabeul+Tunisie',

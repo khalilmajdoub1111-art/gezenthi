@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import tn.gezenthi.booking.BookingDtos.SupplierCheckResult;
 import tn.gezenthi.search.HotelSearchService.BoardResult;
 import tn.gezenthi.search.HotelSearchService.HotelResult;
 import tn.gezenthi.search.HotelSearchService.RoomResult;
+import tn.gezenthi.notification.NotificationService;
 import tn.gezenthi.search.OfferRefCache;
 import tn.gezenthi.supplier.HotelSupplier;
 import tn.gezenthi.supplier.SupplierException;
@@ -50,8 +52,13 @@ public class BookingService {
     private final OfferRefCache offers;
     private final SupplierRegistry suppliers;
     private final JdbcTemplate jdbc;
+    private final ApplicationEventPublisher events;
+    private final NotificationService notifications;
 
-    BookingService(BookingRepository bookings, OfferRefCache offers, SupplierRegistry suppliers, JdbcTemplate jdbc) {
+    BookingService(BookingRepository bookings, OfferRefCache offers, SupplierRegistry suppliers, JdbcTemplate jdbc,
+                   ApplicationEventPublisher events, NotificationService notifications) {
+        this.events = events;
+        this.notifications = notifications;
         this.bookings = bookings;
         this.offers = offers;
         this.suppliers = suppliers;
@@ -121,10 +128,12 @@ public class BookingService {
         bk.customerPhone = in.customer().phone().trim();
         bk.comment = in.comment() == null || in.comment().isBlank() ? null : in.comment().trim();
         bk.consentAt = Instant.now();
+        bk.whatsappOptIn = Boolean.TRUE.equals(in.whatsappOptIn());
         for (PassengerIn p : adultsIn) bk.addPassenger(passenger(p, null));
         for (int i = 0; i < childrenIn.size(); i++) bk.addPassenger(passenger(childrenIn.get(i), ages.get(i)));
         bk.log(WEBSITE, "CREATED", "Prix affiché " + r.totalPrice() + " " + h.currency());
         bookings.save(bk);
+        events.publishEvent(new NotificationService.BookingCreated(bk.id)); // sent after commit
         log.info("Booking request {} created ({}, {})", bk.reference, bk.origin, bk.city); // no personal data
         return new Created(bk.reference, bk.status.name());
     }
@@ -149,6 +158,7 @@ public class BookingService {
         BookingRequest.Status from = b.status;
         b.status = status;
         b.log(actor, "STATUS", from + " → " + status + (note == null || note.isBlank() ? "" : " — " + note.trim()));
+        if (from != status) events.publishEvent(new NotificationService.BookingStatusChanged(b.id, status.name()));
         return toDetail(b);
     }
 
@@ -204,6 +214,7 @@ public class BookingService {
         b.voucherUrl = c.voucherUrl();
         if (c.price() != null) b.supplierPrice = c.price();
         b.status = BookingRequest.Status.CONFIRMED;
+        events.publishEvent(new NotificationService.BookingStatusChanged(b.id, b.status.name()));
         b.log(actor, "SUPPLIER_BOOKED", "Réservation fournisseur n° " + c.bookingId() + " (" + nz(c.state()) + ")");
         log.info("Supplier booking {} for request {} by {}", c.bookingId(), b.reference, actor);
         return toDetail(b);
@@ -287,7 +298,7 @@ public class BookingService {
                 b.supplierState, b.supplierPrice, b.voucherUrl, enabled,
                 b.passengers.stream().map(p -> new PassengerOut(p.position, p.type, p.civility, p.firstName, p.lastName, p.age)).toList(),
                 b.events.stream().map(e -> new EventOut(e.at, e.actor, e.action, e.details)).toList(),
-                b.createdAt);
+                b.createdAt, b.whatsappOptIn, notifications.history(b.id), notifications.status());
     }
 
     private static String nz(String s) {

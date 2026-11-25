@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, effect, inject, input, signal, untr
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiError } from '../core/services/api-error';
-import { BookingDetail, BookingService, BookingStatus, STATUS_LABELS, SupplierCheckResult } from '../core/services/booking.service';
+import {
+  BookingDetail, BookingService, BookingStatus, STATUS_LABELS, SupplierCheckResult, toWhatsAppDigits, whatsappLink,
+} from '../core/services/booking.service';
 import { Icon } from '../shared/icon/icon';
 import { STATUS_STYLE } from './admin-bookings';
 
@@ -84,6 +86,42 @@ import { STATUS_STYLE } from './admin-bookings';
               }
             </div>
             <p class="mt-3 text-xs text-slate-500">La note ci-contre (si remplie) est jointe au changement de statut.</p>
+          </section>
+
+          <section class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+            <h2 class="font-display text-lg font-semibold text-brand-950">Notifications</h2>
+            <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+              <span class="rounded-full px-3 py-1" [class]="b.channels.emailReady ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+                E-mail {{ b.channels.emailReady ? 'actif' : 'non configuré' }}</span>
+              <span class="rounded-full px-3 py-1" [class]="b.channels.whatsappReady ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">
+                WhatsApp auto {{ b.channels.whatsappReady ? 'actif' : 'non configuré' }}</span>
+              @if (b.whatsappOptIn) { <span class="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">Client OK WhatsApp</span> }
+            </div>
+
+            @if (customerWhatsApp(b); as link) {
+              <a [href]="link" target="_blank" rel="noopener"
+                 class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-semibold text-white hover:bg-emerald-600">
+                <app-icon name="whatsapp" [size]="16" /> WhatsApp au client (message prêt)
+              </a>
+              <p class="mt-1 text-xs text-slate-500">Ouvre WhatsApp avec un message pré-rempli selon le statut ; vous l’envoyez vous-même.</p>
+            }
+
+            <ul class="mt-4 space-y-2 text-xs">
+              @for (n of b.notifications; track $index) {
+                <li class="flex items-start justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                  <span>
+                    <strong>{{ n.channel === 'EMAIL' ? 'E-mail' : 'WhatsApp' }}</strong> · {{ n.audience === 'AGENCY' ? 'agence' : 'client' }} ·
+                    {{ templateLabel(n.template) }} · {{ n.recipient }}
+                    @if (n.error) { <span class="block text-slate-500">{{ n.error }}</span> }
+                  </span>
+                  <span class="shrink-0 rounded-full px-2 py-0.5 font-semibold"
+                        [class]="n.status === 'SENT' ? 'bg-emerald-100 text-emerald-700' : n.status === 'FAILED' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'">
+                    {{ n.status === 'SENT' ? 'Envoyé' : n.status === 'FAILED' ? 'Échec' : 'Non envoyé' }}</span>
+                </li>
+              } @empty {
+                <li class="text-slate-500">Aucune notification pour le moment.</li>
+              }
+            </ul>
           </section>
 
           @if (b.origin === 'partenaire') {
@@ -188,6 +226,35 @@ export class AdminBookingDetail {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** wa.me link to the customer with a message adapted to the current status. */
+  protected customerWhatsApp(b: BookingDetail): string | null {
+    const to = toWhatsAppDigits(b.customerPhone);
+    if (!to) return null;
+    const hello = `Bonjour ${this.civ(b.customerCivility)} ${b.customerLastName}, ici Gezenthi Travel.`;
+    const stay = `${b.hotelName} (${b.city}), du ${this.d(b.checkIn)} au ${this.d(b.checkOut)}`;
+    const text = {
+      CONFIRMED: `${hello} Votre réservation ${b.reference} est confirmée : ${stay}. Excellent séjour !`,
+      CANCELLED: `${hello} Votre réservation ${b.reference} (${stay}) a été annulée. Contactez-nous pour toute question.`,
+      REJECTED: `${hello} Nous ne pouvons malheureusement pas confirmer la demande ${b.reference} (${stay}). Pouvons-nous vous proposer une alternative ?`,
+    }[b.status as 'CONFIRMED' | 'CANCELLED' | 'REJECTED']
+      ?? `${hello} Nous avons bien reçu votre demande ${b.reference} : ${stay}. Nous revenons vers vous très vite pour la confirmer.`;
+    return whatsappLink(to, text);
+  }
+
+  private d(iso: string): string {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  }
+
+  protected templateLabel(t: string): string {
+    return ({
+      BOOKING_RECEIVED: 'demande reçue',
+      AGENCY_NEW_BOOKING: 'alerte nouvelle demande',
+      STATUS_CONFIRMED: 'confirmation',
+      STATUS_CANCELLED: 'annulation',
+      STATUS_REJECTED: 'refus',
+    } as Record<string, string>)[t] ?? t;
   }
 
   protected civ(c: string | null): string {

@@ -4,7 +4,7 @@ import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } fr
 import { RouterLink } from '@angular/router';
 import { AGENCY_CONTACT } from '../../core/data/navigation';
 import { ApiError } from '../../core/services/api-error';
-import { BookingService, OfferSummary, PassengerIn } from '../../core/services/booking.service';
+import { BookingService, OfferSummary, PassengerIn, whatsappLink } from '../../core/services/booking.service';
 import { Icon } from '../../shared/icon/icon';
 
 type PaxGroup = FormGroup<{
@@ -34,8 +34,14 @@ type PaxGroup = FormGroup<{
           <p class="mt-2 text-slate-600">Votre référence :</p>
           <p class="mt-1 font-display text-3xl font-bold tracking-wide text-brand-700">{{ ref }}</p>
           <p class="mt-4 text-slate-600">Un conseiller Gezenthi vous contacte rapidement pour confirmer la disponibilité et le paiement.
-            Aucun paiement n’a été effectué.</p>
-          <a routerLink="/" class="mt-8 inline-flex rounded-full bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-700">Retour à l’accueil</a>
+            Aucun paiement n’a été effectué. Un récapitulatif vous est envoyé par e-mail.</p>
+          <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <a [href]="whatsappToAgency(ref)" target="_blank" rel="noopener"
+               class="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 py-3 font-semibold text-white hover:bg-emerald-600">
+              <app-icon name="whatsapp" [size]="18" /> Nous écrire sur WhatsApp
+            </a>
+            <a routerLink="/" class="inline-flex justify-center rounded-full bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-700">Retour à l’accueil</a>
+          </div>
         </div>
       } @else if (loadError()) {
         <div class="mx-auto max-w-xl rounded-3xl bg-white p-10 text-center ring-1 ring-slate-100">
@@ -92,6 +98,10 @@ type PaxGroup = FormGroup<{
                 <textarea formControlName="comment" rows="3" maxlength="1000" placeholder="Lit bébé, chambre calme, heure d’arrivée…" [class]="input + ' mt-2'"></textarea>
               </label>
               <label class="mt-4 flex cursor-pointer items-start gap-3 text-sm text-slate-700">
+                <input type="checkbox" formControlName="whatsappOptIn" class="mt-0.5 size-5 accent-emerald-600" />
+                <span>Je souhaite aussi recevoir le suivi de ma réservation sur <strong>WhatsApp</strong> (facultatif).</span>
+              </label>
+              <label class="mt-3 flex cursor-pointer items-start gap-3 text-sm text-slate-700">
                 <input type="checkbox" formControlName="consent" class="mt-0.5 size-5 accent-brand-600" />
                 <span>J’accepte que Gezenthi Travel utilise ces informations uniquement pour traiter ma réservation
                   et me contacter à ce sujet. Elles ne sont jamais revendues.</span>
@@ -162,8 +172,13 @@ export class BookingPage {
     }),
     passengers: new FormArray<PaxGroup>([]),
     comment: new FormControl('', { nonNullable: true }),
+    whatsappOptIn: new FormControl(false, { nonNullable: true }),
     consent: new FormControl(false, { nonNullable: true, validators: [Validators.requiredTrue] }),
   });
+
+  protected whatsappToAgency(reference: string): string {
+    return whatsappLink(this.contact.whatsapp, `Bonjour Gezenthi, je viens d’envoyer la demande de réservation ${reference}.`);
+  }
 
   protected get passengers(): FormArray<PaxGroup> {
     return this.form.controls.passengers;
@@ -241,6 +256,7 @@ export class BookingPage {
         passengers,
         comment: this.form.controls.comment.value,
         consent: true,
+        whatsappOptIn: this.form.controls.whatsappOptIn.value,
       });
       this.done.set(r.reference);
       window.scrollTo({ top: 0 });

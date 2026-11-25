@@ -60,6 +60,8 @@ public class BookingRequest {
     @Column(name = "customer_phone", nullable = false, length = 30) String customerPhone;
     @Column(length = 1000) String comment;
     @Column(name = "consent_at", nullable = false) Instant consentAt;
+    /** Customer explicitly agreed to receive WhatsApp messages about this booking. */
+    @Column(name = "whatsapp_opt_in", nullable = false) boolean whatsappOptIn;
 
     @Column(name = "supplier_booking_id", length = 40) String supplierBookingId;
     @Column(name = "supplier_state", length = 20) String supplierState;

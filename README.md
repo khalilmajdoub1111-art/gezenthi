@@ -46,6 +46,7 @@ validation errors include `errors: { field: message }`.
 | GET · POST | `/api/admin/suppliers` · `/{code}/test` · `/{code}/sync` | Supplier status, connection test, static sync |
 
 Hotel suppliers (TunisiaBeds / OS-TRAVEL API): see **[docs/SUPPLIERS.md](docs/SUPPLIERS.md)**.
+Booking e-mails & WhatsApp: see **[docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md)**.
 
 ## Security
 

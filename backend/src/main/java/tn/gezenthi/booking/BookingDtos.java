@@ -30,7 +30,9 @@ public final class BookingDtos {
             @Valid @NotNull Customer customer,
             @NotNull @Size(min = 1, max = 10) List<@Valid PassengerIn> passengers,
             @Size(max = 1000) String comment,
-            @AssertTrue(message = "Vous devez accepter le traitement de vos données pour cette réservation.") boolean consent) {
+            @AssertTrue(message = "Vous devez accepter le traitement de vos données pour cette réservation.") boolean consent,
+            /* optional, explicit opt-in (Meta policy); absent = no WhatsApp */
+            Boolean whatsappOptIn) {
     }
 
     public record Customer(
@@ -79,7 +81,10 @@ public final class BookingDtos {
                                 String customerEmail, String customerPhone, String comment, Instant consentAt,
                                 String supplierName, String supplierBookingId, String supplierState,
                                 BigDecimal supplierPrice, String voucherUrl, boolean supplierBookingEnabled,
-                                List<PassengerOut> passengers, List<EventOut> events, Instant createdAt) {
+                                List<PassengerOut> passengers, List<EventOut> events, Instant createdAt,
+                                boolean whatsappOptIn,
+                                List<tn.gezenthi.notification.NotificationService.LogEntry> notifications,
+                                tn.gezenthi.notification.NotificationService.ChannelStatus channels) {
     }
 
     public record StatusChange(@NotNull BookingRequest.Status status, @Size(max = 1000) String note) {
