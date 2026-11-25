@@ -33,7 +33,7 @@ public class Hotel extends CatalogEntity {
         setPublished(d.published());
         name = d.name().trim();
         region = d.region();
-        city = d.city().trim();
+        city = tn.gezenthi.catalog.Validation.capitalizeWords(d.city());
         stars = d.stars();
         rating = d.rating() == null ? BigDecimal.ZERO : d.rating();
         reviews = d.reviews() == null ? 0 : d.reviews();

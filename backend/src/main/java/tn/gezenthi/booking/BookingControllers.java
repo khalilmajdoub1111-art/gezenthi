@@ -2,12 +2,9 @@ package tn.gezenthi.booking;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.time.Instant;
-import java.util.ArrayList;
+import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
+import tn.gezenthi.common.RateLimiter;
 
 /** Booking endpoints: public (offer summary + request) and admin (workflow + supplier actions). */
 final class BookingControllers {
@@ -30,9 +27,9 @@ final class BookingControllers {
     @RequestMapping("/api/public")
     static class PublicBookingController {
 
-        private static final int MAX_REQUESTS_PER_10_MIN = 5;
         private final BookingService service;
-        private final Map<String, List<Instant>> hits = new ConcurrentHashMap<>();
+        /** Anti-spam: a few booking requests per IP per 10 minutes. */
+        private final RateLimiter limiter = new RateLimiter(5, Duration.ofMinutes(10), "Trop de demandes. Appelez-nous directement.");
 
         PublicBookingController(BookingService service) {
             this.service = service;
@@ -47,22 +44,8 @@ final class BookingControllers {
         @PostMapping("/bookings")
         @ResponseStatus(HttpStatus.CREATED)
         BookingDtos.Created create(@Valid @RequestBody BookingDtos.CreateBooking body, HttpServletRequest request) {
-            rateLimit(request.getRemoteAddr());
+            limiter.check(request.getRemoteAddr());
             return service.create(body);
-        }
-
-        /** Anti-spam: a few booking requests per IP per 10 minutes. */
-        private void rateLimit(String ip) {
-            Instant cutoff = Instant.now().minusSeconds(600);
-            List<Instant> recent = hits.compute(ip, (k, l) -> {
-                List<Instant> list = l == null ? new ArrayList<>() : new ArrayList<>(l);
-                list.removeIf(t -> t.isBefore(cutoff));
-                list.add(Instant.now());
-                return list;
-            });
-            if (recent.size() > MAX_REQUESTS_PER_10_MIN) {
-                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Trop de demandes. Appelez-nous directement.");
-            }
         }
     }
 

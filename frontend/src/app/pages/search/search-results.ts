@@ -28,7 +28,7 @@ import { HeroSearch } from '../home/hero-search/hero-search';
             @if (childAges().length) { · {{ childAges().length }} enfant(s) }
           </p>
         }
-        <div class="mt-6"><app-hero-search /></div>
+        <div class="mt-6"><app-hero-search [initial]="currentSearch()" /></div>
       </div>
     </section>
 
@@ -187,6 +187,10 @@ export class SearchResults {
       this.loading.set(false);
     }
   }
+
+  protected readonly currentSearch = computed(() => ({
+    city: this.city(), checkIn: this.checkIn(), checkOut: this.checkOut(), adults: this.adults(), children: this.childAges(),
+  }));
 
   /** Carries the search dates/travellers to the hotel page. */
   protected hotelQuery(): Record<string, string | number | null> {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import { IconName } from '../../../core/models/travel.models';
 import { Icon } from '../../../shared/icon/icon';
@@ -125,6 +125,9 @@ export class HeroSearch {
     { value: '2-8,5', label: '2 adultes, 2 enfants' },
   ];
 
+  /** Pre-fills the form (e.g. on the results page) with the current search. */
+  readonly initial = input<{ city: string; checkIn: string; checkOut: string; adults: number; children: number[] } | null>(null);
+
   private readonly router = inject(Router);
   protected readonly today = isoDate(new Date());
   private readonly activeId = signal('tn');
@@ -135,6 +138,23 @@ export class HeroSearch {
   protected readonly checkIn = signal('');
   protected readonly checkOut = signal('');
   protected readonly travellers = signal('2');
+
+  constructor() {
+    effect(() => {
+      const init = this.initial();
+      if (!init) return;
+      untracked(() => {
+        this.destination.set(init.city);
+        this.checkIn.set(init.checkIn);
+        this.checkOut.set(init.checkOut);
+        const value = init.children.length ? `${init.adults}-${init.children.join(',')}` : String(init.adults);
+        if (!this.travellerOptions.some((o) => o.value === value)) {
+          this.travellerOptions.push({ value, label: `${init.adults} adulte(s)${init.children.length ? ', ' + init.children.length + ' enfant(s)' : ''}` });
+        }
+        this.travellers.set(value);
+      });
+    });
+  }
 
   select(id: string): void {
     this.activeId.set(id);

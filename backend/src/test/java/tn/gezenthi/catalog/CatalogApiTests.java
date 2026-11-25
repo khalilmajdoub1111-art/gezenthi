@@ -80,6 +80,14 @@ class CatalogApiTests {
     }
 
     @Test
+    void hotelCityIsCapitalised() throws Exception {
+        mvc.perform(post("/api/admin/hotels").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(HOTEL.formatted(true).replace("\"city\": \"Nabeul\"", "\"city\": \"  port el kantaoui \"")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.city").value("Port El Kantaoui"));
+    }
+
+    @Test
     void everyAdminCollectionIsListable() throws Exception {
         for (String path : new String[] {"hotels", "trips", "omra", "flights", "services"}) {
             mvc.perform(get("/api/admin/" + path)).andExpect(status().isOk()).andExpect(jsonPath("$").isArray());

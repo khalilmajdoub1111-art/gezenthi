@@ -66,6 +66,17 @@ Hotel suppliers (TunisiaBeds / OS-TRAVEL API): see **[docs/SUPPLIERS.md](docs/SU
 - Demo data: `db/dev-seed` — loaded only by the `dev` profile (default locally), never in production.
 - Tests (`./mvnw test`) run against the local DB inside rolled-back transactions.
 
+## Before going live (deployment checklist)
+
+- **HTTPS** everywhere; `server.servlet.session.cookie.secure=true`; HSTS header.
+- **Content-Security-Policy** header (scripts from self, images from self + supplier CDNs, frames: openstreetmap.org).
+- **Real client IP** behind a reverse proxy (`server.forward-headers-strategy=native` + trusted proxy),
+  otherwise rate limits apply to the proxy's IP for everyone.
+- Profile `prod` (no `db/dev-seed`, no `only-hotels`), secrets as environment variables.
+- Admin lockout is per account (5 failures → 15 min): consider adding IP-based limits too.
+- Uploaded admin photos are stored in the DB (data URLs): move to file/object storage.
+- Database backups + log retention policy; personal data retention for bookings.
+
 ## Conventions
 
 - **Secrets** never go in Git: env file / environment variables only.

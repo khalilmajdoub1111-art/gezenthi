@@ -14,4 +14,16 @@ public final class Validation {
 
     private Validation() {
     }
+
+    /** "hammamet" → "Hammamet", "port el kantaoui" → "Port El Kantaoui"; keeps "Dubaï", "Aïn-Draham". */
+    public static String capitalizeWords(String s) {
+        if (s == null) return null;
+        StringBuilder out = new StringBuilder();
+        boolean start = true;
+        for (char ch : s.trim().replaceAll("\\s+", " ").toCharArray()) {
+            out.append(start ? Character.toUpperCase(ch) : ch);
+            start = ch == ' ' || ch == '-' || ch == '\'';
+        }
+        return out.toString();
+    }
 }
