@@ -102,6 +102,30 @@ class BookingNotificationTests {
         assertThat(SENT.stream().map(this::subject).toList()).anyMatch(s -> s.startsWith("Réservation confirmée"));
     }
 
+    @Test
+    void quoteRequestSendsCustomerAndAgencyEmails() throws Exception {
+        String created = mvc.perform(post("/api/public/inquiries").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
+                {"type":"TRIP","subject":"Istanbul 8 jours","adults":2,
+                 "customer":{"civility":"Mr","firstName":"Karim","lastName":"Devis","email":"karim.devis@example.tn","phone":"22 333 444"},
+                 "consent":true}"""))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String ref = JsonPath.read(created, "$.reference");
+        try {
+            String id = jdbc.queryForObject("select id::text from inquiry where reference = ?", String.class, ref);
+            Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
+            List<Map<String, Object>> rows = List.of();
+            while (Instant.now().isBefore(deadline) && rows.size() < 2) {
+                rows = jdbc.queryForList("select template, status from notification_log where inquiry_id = ?::uuid", id);
+                Thread.sleep(100);
+            }
+            assertThat(rows).extracting(r -> r.get("template") + "/" + r.get("status"))
+                    .containsExactlyInAnyOrder("INQUIRY_RECEIVED/SENT", "AGENCY_NEW_INQUIRY/SENT");
+            assertThat(SENT.stream().map(this::subject).toList()).anyMatch(s -> s.contains(ref) && s.startsWith("Votre demande de devis"));
+        } finally {
+            jdbc.update("delete from inquiry where reference = ?", ref);
+        }
+    }
+
     private List<Map<String, Object>> awaitLog(String bookingId, int expected) throws InterruptedException {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         List<Map<String, Object>> rows = List.of();

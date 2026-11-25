@@ -26,6 +26,8 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('./admin/admin-dashboard').then((m) => m.AdminDashboard), title: 'Tableau de bord — Admin Gezenthi' },
       { path: 'fournisseurs', loadComponent: () => import('./admin/admin-suppliers').then((m) => m.AdminSuppliers), title: 'Fournisseurs — Admin Gezenthi' },
       { path: 'reservations', loadComponent: () => import('./admin/admin-bookings').then((m) => m.AdminBookings), title: 'Réservations — Admin Gezenthi' },
+      { path: 'devis', loadComponent: () => import('./admin/admin-inquiries').then((m) => m.AdminInquiries), title: 'Devis — Admin Gezenthi' },
+      { path: 'devis/:id', loadComponent: () => import('./admin/admin-inquiries').then((m) => m.AdminInquiryDetail), title: 'Devis — Admin Gezenthi' },
       { path: 'reservations/:id', loadComponent: () => import('./admin/admin-booking-detail').then((m) => m.AdminBookingDetail), title: 'Réservation — Admin Gezenthi' },
       { path: ':entity', loadComponent: () => import('./admin/entity-list').then((m) => m.EntityList), title: 'Offres — Admin Gezenthi' },
       { path: ':entity/new', loadComponent: () => import('./admin/entity-form').then((m) => m.EntityForm), title: 'Nouvelle offre — Admin Gezenthi' },

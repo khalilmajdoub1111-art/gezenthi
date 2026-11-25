@@ -27,6 +27,10 @@ public class NotificationService {
     public record BookingStatusChanged(UUID bookingId, String status) {
     }
 
+    /** Published by the quote-request module. */
+    public record InquiryCreated(UUID inquiryId) {
+    }
+
     public record LogEntry(String channel, String audience, String template, String recipient, String status,
                            String error, java.time.Instant at) {
     }
@@ -70,6 +74,59 @@ public class NotificationService {
             MessageTemplates.Mail mail = MessageTemplates.customerStatus(b, props.getAgencyPhone());
             if (mail != null) sendEmail(b, "CUSTOMER", "STATUS_" + e.status(), b.customerEmail(), mail);
         });
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    void onInquiryCreated(InquiryCreated e) {
+        Thread.ofVirtual().name("notify-inquiry-" + e.inquiryId()).start(() -> {
+            MessageTemplates.InquiryMessage q = loadInquiry(e.inquiryId());
+            if (q == null) return;
+            sendInquiryEmail(q, "CUSTOMER", "INQUIRY_RECEIVED", q.email(), MessageTemplates.inquiryReceived(q, props.getAgencyPhone()));
+            String adminUrl = props.getSiteUrl().replaceAll("/+$", "") + "/admin/devis/" + q.id();
+            if (props.getAgencyEmail().isBlank()) {
+                insertLog(null, q.id(), "EMAIL", "AGENCY", "AGENCY_NEW_INQUIRY", "(aucune)", "SKIPPED", "Adresse de l’agence non configurée");
+            } else {
+                sendInquiryEmail(q, "AGENCY", "AGENCY_NEW_INQUIRY", props.getAgencyEmail(), MessageTemplates.inquiryAgency(q, adminUrl));
+            }
+        });
+    }
+
+    public List<LogEntry> historyForInquiry(UUID inquiryId) {
+        return jdbc.query("select channel, audience, template, recipient, status, error, created_at from notification_log "
+                        + "where inquiry_id = ? order by created_at",
+                (rs, i) -> new LogEntry(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                        rs.getString(6), rs.getTimestamp(7).toInstant()), inquiryId);
+    }
+
+    private void sendInquiryEmail(MessageTemplates.InquiryMessage q, String audience, String template, String to, MessageTemplates.Mail mail) {
+        String masked = maskEmail(to);
+        if (!email.ready()) {
+            insertLog(null, q.id(), "EMAIL", audience, template, masked, "SKIPPED", "E-mail non configuré (SMTP)");
+            return;
+        }
+        try {
+            email.send(to, mail);
+            insertLog(null, q.id(), "EMAIL", audience, template, masked, "SENT", null);
+        } catch (Exception ex) {
+            log.warn("E-mail {} for {} failed: {}", template, q.reference(), ex.getClass().getSimpleName());
+            insertLog(null, q.id(), "EMAIL", audience, template, masked, "FAILED", ex.getClass().getSimpleName() + ": " + safe(ex.getMessage()));
+        }
+    }
+
+    private static final java.util.Map<String, String> TYPE_LABELS = java.util.Map.of(
+            "HOTEL", "Hôtel", "TRIP", "Voyage organisé", "OMRA", "Omra", "VISA", "Visa",
+            "FLIGHT", "Vol", "FERRY", "Traversée / TRE", "OTHER", "Autre");
+
+    private MessageTemplates.InquiryMessage loadInquiry(UUID id) {
+        List<MessageTemplates.InquiryMessage> rows = jdbc.query("""
+                select id, reference, type, subject, date_from, date_to, adults, children, message, customer_civility,
+                       customer_first_name, customer_last_name, customer_email, customer_phone
+                from inquiry where id = ?""",
+                (rs, i) -> new MessageTemplates.InquiryMessage(rs.getObject(1, UUID.class), rs.getString(2),
+                        TYPE_LABELS.getOrDefault(rs.getString(3), rs.getString(3)), rs.getString(4),
+                        rs.getObject(5, LocalDate.class), rs.getObject(6, LocalDate.class), rs.getInt(7), rs.getInt(8),
+                        rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14)), id);
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     public List<LogEntry> history(UUID bookingId) {
@@ -125,9 +182,14 @@ public class NotificationService {
     }
 
     private void record(BookingMessage b, String channel, String audience, String template, String recipient, String status, String error) {
-        jdbc.update("insert into notification_log (id, booking_id, channel, audience, template, recipient, status, error) "
-                        + "values (?, ?, ?, ?, ?, ?, ?, ?)",
-                UUID.randomUUID(), b.bookingId(), channel, audience, template, recipient, status,
+        insertLog(b.bookingId(), null, channel, audience, template, recipient, status, error);
+    }
+
+    private void insertLog(UUID bookingId, UUID inquiryId, String channel, String audience, String template,
+                           String recipient, String status, String error) {
+        jdbc.update("insert into notification_log (id, booking_id, inquiry_id, channel, audience, template, recipient, status, error) "
+                        + "values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                UUID.randomUUID(), bookingId, inquiryId, channel, audience, template, recipient, status,
                 error == null ? null : error.substring(0, Math.min(500, error.length())));
     }
 

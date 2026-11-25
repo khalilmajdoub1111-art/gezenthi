@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CatalogService } from '../../core/services/catalog.service';
 import { HotelSearchService, PartnerCard } from '../../core/services/hotel-search.service';
+import { InquiryService, QuoteContext } from '../../core/services/inquiry.service';
 import { RouterLink } from '@angular/router';
 import { HotelCard } from '../../shared/hotel-card/hotel-card';
 import { Icon } from '../../shared/icon/icon';
@@ -41,6 +42,13 @@ export class Home {
   protected readonly filteredHotels = computed(() =>
     this.city() === 'Tous' ? this.regionHotels() : this.regionHotels().filter((h) => h.city === this.city()),
   );
+
+  private readonly inquiries = inject(InquiryService);
+
+  /** Opens the "Demande de devis" form for an offer that can't be booked online. */
+  protected quote(ctx: QuoteContext): void {
+    this.inquiries.open(ctx);
+  }
 
   protected setRegion(region: 'tunisie' | 'monde'): void {
     this.region.set(region);

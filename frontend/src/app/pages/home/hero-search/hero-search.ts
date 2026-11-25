@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
+import { InquiryService } from '../../../core/services/inquiry.service';
 import { IconName } from '../../../core/models/travel.models';
 import { Icon } from '../../../shared/icon/icon';
 
@@ -129,6 +130,7 @@ export class HeroSearch {
   readonly initial = input<{ city: string; checkIn: string; checkOut: string; adults: number; children: number[] } | null>(null);
 
   private readonly router = inject(Router);
+  private readonly inquiries = inject(InquiryService);
   protected readonly today = isoDate(new Date());
   private readonly activeId = signal('tn');
   protected readonly active = computed(() => this.tabs.find((t) => t.id === this.activeId())!);
@@ -174,7 +176,18 @@ export class HeroSearch {
   onSubmit(event: Event): void {
     event.preventDefault();
     if (this.activeId() !== 'tn' && this.activeId() !== 'world') {
-      this.notice.set('Recherche en ligne bientôt disponible pour cette rubrique : contactez-nous pour un devis.');
+      // Trips / flights / Omra: no online booking → open the quote request form, pre-filled.
+      const type = ({ trips: 'TRIP', flights: 'FLIGHT', omra: 'OMRA' } as const)[this.activeId() as 'trips' | 'flights' | 'omra'];
+      const [adults, children = ''] = this.travellers().split('-');
+      const label = { TRIP: 'Voyage organisé', FLIGHT: 'Vol Tunis →', OMRA: 'Omra' }[type];
+      this.inquiries.open({
+        type,
+        subject: `${label} ${this.destination().trim() || '(à préciser)'}`.trim(),
+        dateFrom: this.checkIn() || null,
+        dateTo: this.checkOut() || null,
+        adults: Number(adults) || 2,
+        children: children ? children.split(',').length : 0,
+      });
       return;
     }
     if (!this.destination().trim() || !this.checkIn() || !this.checkOut()) {

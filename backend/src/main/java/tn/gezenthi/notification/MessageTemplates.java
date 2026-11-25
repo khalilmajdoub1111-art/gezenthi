@@ -63,17 +63,55 @@ final class MessageTemplates {
         return mail(subject, "Bonjour,", intro, b, "Traiter la demande : " + adminUrl);
     }
 
+    // ------------------------------------------------------------------ quote requests
+
+    /** Quote request snapshot for messages. */
+    record InquiryMessage(java.util.UUID id, String reference, String typeLabel, String subject,
+                          java.time.LocalDate dateFrom, java.time.LocalDate dateTo, int adults, int children,
+                          String message, String civility, String firstName, String lastName, String email, String phone) {
+    }
+
+    static Mail inquiryReceived(InquiryMessage q, String agencyPhone) {
+        return mail("Votre demande de devis " + q.reference() + " — Gezenthi Travel",
+                "Bonjour " + civ(q.civility()) + " " + q.lastName() + ",",
+                "Nous avons bien reçu votre demande. Un conseiller Gezenthi vous recontacte rapidement avec une proposition personnalisée.",
+                inquiryRows(q), "Une question ? Appelez-nous au " + agencyPhone + " en indiquant la référence " + q.reference() + ".");
+    }
+
+    static Mail inquiryAgency(InquiryMessage q, String adminUrl) {
+        return mail("Nouvelle demande de devis " + q.reference() + " — " + q.typeLabel() + " : " + q.subject(),
+                "Bonjour,",
+                "Nouvelle demande de devis reçue sur le site. Client : " + civ(q.civility()) + " " + q.firstName() + " "
+                        + q.lastName() + " · " + q.email() + " · " + q.phone() + ".",
+                inquiryRows(q), "Traiter la demande : " + adminUrl);
+    }
+
+    private static String[][] inquiryRows(InquiryMessage q) {
+        String dates = q.dateFrom() == null ? "À préciser"
+                : DATE.format(q.dateFrom()) + (q.dateTo() == null ? "" : " → " + DATE.format(q.dateTo()));
+        return new String[][] {
+                {"Référence", q.reference()},
+                {"Demande", q.typeLabel() + " — " + q.subject()},
+                {"Dates", dates},
+                {"Voyageurs", q.adults() + " adulte(s)" + (q.children() > 0 ? ", " + q.children() + " enfant(s)" : "")},
+                {"Message", q.message() == null ? "—" : q.message()},
+        };
+    }
+
     // ------------------------------------------------------------------ rendering
 
     private static Mail mail(String subject, String greeting, String intro, BookingMessage b, String footer) {
-        String[][] rows = {
+        return mail(subject, greeting, intro, new String[][] {
                 {"Référence", b.reference()},
                 {"Hôtel", b.hotelName() + " — " + b.city()},
                 {"Dates", DATE.format(b.checkIn()) + " → " + DATE.format(b.checkOut()) + " (" + b.nights() + " nuit(s))"},
                 {"Voyageurs", b.adults() + " adulte(s)" + (b.children() > 0 ? ", " + b.children() + " enfant(s)" : "")},
                 {"Chambre", nz(b.roomName()) + (b.boardName() == null ? "" : " · " + b.boardName())},
                 {"Total séjour", money(b)},
-        };
+        }, footer);
+    }
+
+    private static Mail mail(String subject, String greeting, String intro, String[][] rows, String footer) {
         StringBuilder text = new StringBuilder(greeting).append("\n\n").append(intro).append("\n\n");
         for (String[] r : rows) text.append(r[0]).append(" : ").append(r[1]).append('\n');
         text.append('\n').append(footer).append("\n\n— Gezenthi Travel Agency");

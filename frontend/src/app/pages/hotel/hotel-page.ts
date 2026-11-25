@@ -4,6 +4,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { AGENCY_CONTACT } from '../../core/data/navigation';
 import { HotelPage as HotelPageData, HotelResult, HotelSearchService } from '../../core/services/hotel-search.service';
+import { InquiryService } from '../../core/services/inquiry.service';
 import { Icon } from '../../shared/icon/icon';
 
 /**
@@ -113,6 +114,11 @@ import { Icon } from '../../shared/icon/icon';
         <aside class="lg:sticky lg:top-24 lg:self-start">
           <div class="rounded-3xl bg-white p-6 shadow-lg shadow-brand-950/5 ring-1 ring-slate-100">
             <h2 class="font-display text-lg font-semibold text-brand-950">Prix & disponibilités</h2>
+            <ol class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+              <li><strong class="text-brand-700">1.</strong> Vos dates</li>
+              <li><strong class="text-brand-700">2.</strong> Choisissez une chambre</li>
+              <li><strong class="text-brand-700">3.</strong> Vos coordonnées — un conseiller confirme, aucun paiement en ligne</li>
+            </ol>
             <form class="mt-4 grid grid-cols-2 gap-3" (submit)="$event.preventDefault(); checkAvailability()">
               <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Arrivée
                 <input type="date" [min]="today" [value]="dates().checkIn" (input)="setDate('checkIn', $any($event.target).value)"
@@ -137,10 +143,13 @@ import { Icon } from '../../shared/icon/icon';
             @if (availabilityError()) {
               <p class="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ availabilityError() }}</p>
             } @else if (checked() && !offer()) {
-              <p class="mt-4 rounded-xl bg-gold-50 px-3 py-3 text-sm text-slate-700 ring-1 ring-gold-200">
-                Pas de tarif en ligne pour ces dates. <strong>Disponible sur demande</strong> : appelez-nous au
-                <a [href]="contact.phoneHref" class="font-semibold text-brand-700">{{ contact.phone }}</a>.
-              </p>
+              <div class="mt-4 rounded-xl bg-gold-50 px-4 py-4 text-sm text-slate-700 ring-1 ring-gold-200">
+                <p>Pas de tarif en ligne pour ces dates : cet hôtel est <strong>disponible sur demande</strong>.</p>
+                <button type="button" (click)="askQuote()"
+                        class="mt-3 w-full rounded-xl bg-gold-400 py-2.5 font-semibold text-brand-950 hover:bg-gold-300">
+                  Demander un devis pour cet hôtel
+                </button>
+              </div>
             }
 
             @if (offer(); as o) {
@@ -173,6 +182,11 @@ import { Icon } from '../../shared/icon/icon';
                 }
                 <p class="text-xs text-slate-500">Prix total du séjour, taxes incluses. Confirmation par un conseiller Gezenthi.</p>
               </div>
+            }
+            @if (!(checked() && !offer())) {
+              <button type="button" (click)="askQuote()" class="mt-4 w-full text-center text-sm font-medium text-brand-600 hover:underline">
+                Dates pas encore fixées ? Demandez un devis
+              </button>
             }
           </div>
         </aside>
@@ -207,6 +221,7 @@ export class HotelPage {
   private readonly api = inject(HotelSearchService);
   private readonly router = inject(Router);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly inquiries = inject(InquiryService);
   protected readonly contact = AGENCY_CONTACT;
   protected readonly today = new Date().toISOString().slice(0, 10);
 
@@ -243,11 +258,15 @@ export class HotelPage {
     this.offer.set(null);
     this.checked.set(false);
     try {
-      this.hotel.set(await this.api.hotel(ref));
-      const checkIn = this.checkInParam() ?? '';
-      const checkOut = this.checkOutParam() ?? '';
+      const hotel = await this.api.hotel(ref);
+      this.hotel.set(hotel);
+      // No dates in the URL: suggest some (in 30 days, 3 nights) so the visitor sees how it works.
+      const fromUrl = !!(this.checkInParam() && this.checkOutParam());
+      const checkIn = this.checkInParam() ?? isoDate(addDays(new Date(), 30));
+      const checkOut = this.checkOutParam() ?? isoDate(addDays(new Date(checkIn + 'T00:00:00'), 3));
       this.dates.set({ checkIn, checkOut, adults: Math.min(4, Math.max(1, Number(this.adultsParam() ?? 2) || 2)) });
-      if (checkIn && checkOut) await this.checkAvailability();
+      // Agency hotels: show prices right away. Partner hotels: only when the visitor asks (supplier API call).
+      if (fromUrl || hotel.origin === 'agence') await this.checkAvailability();
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Hôtel introuvable.');
     }
@@ -288,6 +307,18 @@ export class HotelPage {
     }
   }
 
+  /** Quote request for this hotel, with the dates/travellers currently selected. */
+  protected askQuote(): void {
+    const h = this.hotel();
+    if (!h) return;
+    const d = this.dates();
+    this.inquiries.open({
+      type: 'HOTEL', subject: `${h.name} — ${h.city}`, offerRef: h.ref,
+      dateFrom: d.checkIn || null, dateTo: d.checkOut || null, adults: d.adults,
+      children: (this.childrenParam() ?? '').split(',').filter(Boolean).length,
+    });
+  }
+
   protected step(delta: number, count: number): void {
     this.lightbox.update((i) => (i === null ? 0 : (i + delta + count) % count));
   }
@@ -299,4 +330,15 @@ export class HotelPage {
   protected back(): void {
     history.length > 1 ? history.back() : void this.router.navigateByUrl('/');
   }
+}
+
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+/** Local date as YYYY-MM-DD (no timezone shift). */
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

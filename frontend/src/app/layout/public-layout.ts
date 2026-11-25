@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AGENCY_CONTACT } from '../core/data/navigation';
 import { Icon } from '../shared/icon/icon';
+import { QuoteDialog } from '../shared/quote-dialog/quote-dialog';
 import { Footer } from './footer/footer';
 import { Header } from './header/header';
 
 /** Shell of the public website (header + page + footer). The admin has its own shell. */
 @Component({
   selector: 'app-public-layout',
-  imports: [RouterOutlet, Header, Footer, Icon],
+  imports: [RouterOutlet, Header, Footer, Icon, QuoteDialog],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
@@ -17,6 +18,7 @@ import { Header } from './header/header';
       <router-outlet />
     </main>
     <app-footer />
+    <app-quote-dialog />
 
     <a
       [href]="contact.phoneHref"

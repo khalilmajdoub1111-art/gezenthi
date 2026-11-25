@@ -3,6 +3,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AGENCY_CONTACT } from '../../core/data/navigation';
 import { HotelResult, HotelSearchService, SearchResponse } from '../../core/services/hotel-search.service';
+import { InquiryService } from '../../core/services/inquiry.service';
 import { Icon } from '../../shared/icon/icon';
 import { HeroSearch } from '../home/hero-search/hero-search';
 
@@ -123,7 +124,12 @@ import { HeroSearch } from '../home/hero-search/hero-search';
             </article>
           } @empty {
             <div class="rounded-3xl bg-white p-12 text-center text-slate-500">
-              Aucune disponibilité trouvée pour ces dates. Essayez d’autres dates ou contactez-nous au {{ contact.phone }}.
+              <p>Aucune disponibilité en ligne pour ces dates.</p>
+              <p class="mt-1">Nos conseillers ont souvent d’autres options : décrivez-nous votre séjour.</p>
+              <button type="button" (click)="askQuote()"
+                      class="mt-5 rounded-full bg-gold-400 px-6 py-3 font-semibold text-brand-950 hover:bg-gold-300">
+                Demander un devis pour {{ city() }}
+              </button>
             </div>
           }
         </div>
@@ -195,6 +201,15 @@ export class SearchResults {
   /** Carries the search dates/travellers to the hotel page. */
   protected hotelQuery(): Record<string, string | number | null> {
     return { checkIn: this.checkIn(), checkOut: this.checkOut(), adults: this.adults(), children: this.childAges().join(',') || null };
+  }
+
+  private readonly inquiries = inject(InquiryService);
+
+  protected askQuote(): void {
+    this.inquiries.open({
+      type: 'HOTEL', subject: `Hôtel à ${this.city()}`, dateFrom: this.checkIn() || null, dateTo: this.checkOut() || null,
+      adults: this.adults(), children: this.childAges().length,
+    });
   }
 
   protected toggle(id: string): void {
