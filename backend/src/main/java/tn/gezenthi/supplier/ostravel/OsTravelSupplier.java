@@ -117,7 +117,9 @@ public class OsTravelSupplier implements HotelSupplier {
             booking.put("CheckOut", DATE.format(query.checkOut()));
             ArrayNode hotels = booking.putArray("Hotels");
             chunk.forEach(id -> hotels.add(Integer.parseInt(id)));
-            details.putObject("Filters").put("OnlyAvailable", true);
+            // false: also get "on request" / stop-sale rates; unbookable rooms are flagged by the parser
+            // (StopReservation) and excluded from the "from" price, instead of hiding the hotel.
+            details.putObject("Filters").put("OnlyAvailable", false);
             ArrayNode rooms = details.putArray("Rooms");
             for (Room r : query.rooms()) {
                 ObjectNode room = rooms.addObject();
@@ -202,7 +204,7 @@ public class OsTravelSupplier implements HotelSupplier {
                     .body(payload)
                     .exchange((req, res) -> new String(res.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
             JsonNode root = json.readTree(response == null || response.isBlank() ? "{}" : response);
-            log.info("supplier={} method={} durationMs={}", code, method, (System.nanoTime() - start) / 1_000_000);
+            log.info("supplier={} method={} durationMs={} shape={}", code, method, (System.nanoTime() - start) / 1_000_000, shape(root));
             OsTravelParser.checkError(displayName(), root);
             return root;
         } catch (SupplierException e) {
@@ -213,6 +215,21 @@ public class OsTravelSupplier implements HotelSupplier {
             log.warn("supplier={} method={} failed: {}", code, method, e.getClass().getSimpleName());
             throw new SupplierException(displayName() + " : appel " + method + " impossible (" + e.getClass().getSimpleName() + ").", e);
         }
+    }
+
+    /**
+     * Structure only, for diagnostics: top-level field names with array sizes / value kinds.
+     * Never logs values (no prices, tokens or personal data).
+     */
+    static String shape(JsonNode root) {
+        if (root.isArray()) return "array[" + root.size() + "]";
+        StringBuilder sb = new StringBuilder("{");
+        root.propertyNames().forEach(name -> {
+            JsonNode v = root.get(name);
+            String kind = v.isArray() ? "array[" + v.size() + "]" : v.isObject() ? "object" : v.isNull() ? "null" : v.getNodeType().name().toLowerCase(Locale.ROOT);
+            sb.append(name).append(':').append(kind).append(' ');
+        });
+        return sb.toString().trim() + "}";
     }
 
     private static boolean notBlank(String s) {

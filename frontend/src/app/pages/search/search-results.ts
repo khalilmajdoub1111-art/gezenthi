@@ -121,12 +121,19 @@ import { HeroSearch } from '../home/hero-search/hero-search';
   `,
 })
 export class SearchResults {
-  /** Query params bound by the router. */
-  readonly city = input<string>('');
-  readonly checkIn = input<string>('');
-  readonly checkOut = input<string>('');
-  readonly adultsParam = input<string>('2', { alias: 'adults' });
-  readonly childrenParam = input<string>('', { alias: 'children' });
+  /**
+   * Query params bound by the router. A param missing from the URL arrives as `undefined`
+   * (the default value is NOT applied), so every read below falls back explicitly.
+   */
+  readonly cityParam = input<string | undefined>(undefined, { alias: 'city' });
+  readonly checkInParam = input<string | undefined>(undefined, { alias: 'checkIn' });
+  readonly checkOutParam = input<string | undefined>(undefined, { alias: 'checkOut' });
+  readonly adultsParam = input<string | undefined>(undefined, { alias: 'adults' });
+  readonly childrenParam = input<string | undefined>(undefined, { alias: 'children' });
+
+  protected readonly city = computed(() => (this.cityParam() ?? '').trim());
+  protected readonly checkIn = computed(() => this.checkInParam() ?? '');
+  protected readonly checkOut = computed(() => this.checkOutParam() ?? '');
 
   private readonly searchApi = inject(HotelSearchService);
   protected readonly contact = AGENCY_CONTACT;
@@ -135,9 +142,9 @@ export class SearchResults {
   protected readonly error = signal<string | null>(null);
   protected readonly open = signal<string | null>(null);
 
-  protected readonly adults = computed(() => Math.min(6, Math.max(1, Number(this.adultsParam()) || 2)));
+  protected readonly adults = computed(() => Math.min(6, Math.max(1, Number(this.adultsParam() ?? 2) || 2)));
   protected readonly childAges = computed(() =>
-    this.childrenParam().split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => Number.isInteger(n)),
+    (this.childrenParam() ?? '').split(',').map((s) => s.trim()).filter(Boolean).map(Number).filter((n) => Number.isInteger(n)),
   );
 
   constructor() {

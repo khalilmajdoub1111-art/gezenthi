@@ -46,6 +46,12 @@ public class SupplierProperties {
         private List<String> countries = List.of("tn");
         /** Safety switch for the future booking workflow: real reservations are impossible while false. */
         private boolean bookingEnabled = false;
+        /**
+         * If not empty, only these supplier hotel ids are searched. Needed while the supplier
+         * account is in test mode: TunisiaBeds rejects a whole search ("Hôtel(s) non affecter")
+         * as soon as ONE requested hotel is not assigned to the account.
+         */
+        private List<String> onlyHotels = List.of();
 
         public String getType() { return type; }
         public void setType(String type) { this.type = type; }
@@ -65,6 +71,8 @@ public class SupplierProperties {
         public void setCountries(List<String> countries) { this.countries = countries; }
         public boolean isBookingEnabled() { return bookingEnabled; }
         public void setBookingEnabled(boolean bookingEnabled) { this.bookingEnabled = bookingEnabled; }
+        public List<String> getOnlyHotels() { return onlyHotels; }
+        public void setOnlyHotels(List<String> onlyHotels) { this.onlyHotels = onlyHotels == null ? List.of() : onlyHotels; }
 
         @Override
         public String toString() { // never print credentials

@@ -85,7 +85,10 @@ public class HotelSearchService {
         List<CompletableFuture<List<HotelResult>>> calls = suppliers.activeForSearch().stream()
                 .map(s -> {
                     // DB lookup in the request thread; only the remote API call runs in parallel.
-                    List<SupplierHotel> inCity = supplierHotels.findActiveInCity(s.code(), q.city().trim());
+                    List<String> only = suppliers.settings(s.code()).getOnlyHotels();
+                    List<SupplierHotel> inCity = supplierHotels.findActiveInCity(s.code(), q.city().trim()).stream()
+                            .filter(h -> only.isEmpty() || only.contains(h.getExternalId()))
+                            .toList();
                     return CompletableFuture.supplyAsync(() -> supplierOffers(s, q, inCity), pool)
                         .orTimeout(SUPPLIER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                         .exceptionally(e -> {
